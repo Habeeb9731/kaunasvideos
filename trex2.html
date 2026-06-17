@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T-Rex Pixel Run</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #f7f7f7;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #wrapper {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+    }
+    canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  </style>
+</head>
+<body>
+<div id="wrapper"><canvas id="c" width="960" height="540"></canvas></div>
+<script>
+const W = 960, H = 540;
+const GROUND = 390;
+const P = 5;
+const INK = '#535353';
+const BG  = '#f7f7f7';
+const CLR = '#c5c5c5';
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ── Pixel sprites ─────────────────────────────────────────────────────────────
+// 'X' = ink, ' ' = transparent
+const SP_BODY = [
+  '    XXXXX   ',
+  '   XXXXXXXX ',
+  '   X XXXXXX ',
+  '   XXXXXXXX ',
+  'XXXXXXXXXX  ',
+  'XXXXXXXXXXX ',
+  ' XXXXXXXXX  ',
+  '  XXXXXXX   ',
+];
+const SP_STILL = ['  XX  XX    ', '  XX  XX    '];
+const SP_RUN1  = ['  XXXXX     ', '    XX      '];
+const SP_RUN2  = ['     XXXXX  ', '      XX    '];
+
+const SP_CACT_S = [
+  '  X  ',
+  ' XXX ',
+  'XXXXX',
+  ' XXX ',
+  ' XXX ',
+  ' XXX ',
+  ' XXX ',
+  ' XXX ',
+];
+const SP_CACT_L = [
+  '  X X   ',
+  ' XXXXXX ',
+  'XXXXXXXX',
+  ' XXXXXX ',
+  '  XXXX  ',
+  '  XXXX  ',
+  '  XXXX  ',
+  '  XXXX  ',
+  '  XXXX  ',
+  '  XXXX  ',
+];
+const SP_CLOUD = [
+  '  XXX   ',
+  ' XXXXX  ',
+  'XXXXXXXX',
+  ' XXXXX  ',
+];
+
+function blit(rows, ox, oy, col) {
+  ctx.fillStyle = col || INK;
+  rows.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      if (row[c] === 'X') ctx.fillRect(Math.round(ox + c * P), Math.round(oy + r * P), P, P);
+    }
+  });
+}
+
+// ── Ground ────────────────────────────────────────────────────────────────────
+const TILE_W = W * 2;
+const BUMPS = Array.from({length: 80}, () => ({
+  ox: Math.random() * TILE_W,
+  h:  Math.floor(Math.random() * 2) + 1,
+  w:  Math.random() > 0.5 ? P : P * 2,
+}));
+
+function drawGround(off) {
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, GROUND, W, 2);
+  BUMPS.forEach(b => {
+    const x = ((b.ox - off % TILE_W) % TILE_W + TILE_W) % TILE_W;
+    if (x < W + b.w) ctx.fillRect(Math.round(x), GROUND + 3, b.w, b.h * 2);
+  });
+}
+
+// ── Clouds ────────────────────────────────────────────────────────────────────
+const CLD_W = SP_CLOUD[0].length * P;
+const CLOUDS = Array.from({length: 5}, (_, i) => ({
+  x: i * 220,
+  y: 40 + Math.round(Math.random() * 90),
+  spd: 0.3 + Math.random() * 0.35,
+}));
+
+function drawClouds() {
+  CLOUDS.forEach(c => {
+    blit(SP_CLOUD, Math.round(c.x), c.y, CLR);
+    c.x -= c.spd;
+    if (c.x + CLD_W < 0) {
+      c.x = W + 30 + Math.random() * 120;
+      c.y = 40 + Math.round(Math.random() * 90);
+    }
+  });
+}
+
+// ── Dino ──────────────────────────────────────────────────────────────────────
+const DINO_W = SP_BODY[0].length * P;   // 60
+const DINO_H = (SP_BODY.length + SP_STILL.length) * P; // 50
+
+function drawDino(d, lf) {
+  const top = d.y - DINO_H;
+  blit(SP_BODY, d.x, top);
+  const legs = lf === 1 ? SP_RUN1 : lf === 2 ? SP_RUN2 : SP_STILL;
+  blit(legs, d.x, top + SP_BODY.length * P);
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function drawHUD(score, best) {
+  ctx.fillStyle = INK;
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText('HI ' + String(best).padStart(5,'0') + '   ' + String(score).padStart(5,'0'), W - 20, 18);
+}
+
+// ── Game ──────────────────────────────────────────────────────────────────────
+let dino, obs, score, best = 0, speed, fc, running, gState, raf;
+
+function init() {
+  dino  = { x: 100, y: GROUND, vy: 0, jumps: 0 };
+  obs   = [];
+  score = 0;
+  speed = 5.5;
+  fc    = 0;
+  gState = 'play';
+}
+
+function jump() {
+  if (gState !== 'play' || dino.jumps >= 2) return;
+  dino.vy = -14;
+  dino.jumps++;
+}
+
+function spawnObs() {
+  const big = Math.random() > 0.5;
+  const sp  = big ? SP_CACT_L : SP_CACT_S;
+  obs.push({ x: W + 20, sp, w: sp[0].length * P, h: sp.length * P });
+}
+
+function gameLoop() {
+  if (!running) return;
+  fc++;
+
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  drawClouds();
+  drawGround(fc * speed);
+
+  // Physics
+  dino.vy += 0.85;
+  dino.y   = Math.min(dino.y + dino.vy, GROUND);
+  if (dino.y === GROUND) { dino.vy = 0; dino.jumps = 0; }
+
+  speed += 0.003;
+
+  // Spawn obstacles: first at fc=55, then every ~60 frames
+  if (fc === 55 || (fc > 55 && (fc - 55) % Math.max(45, 70 - score * 3) === 0)) spawnObs();
+
+  // Move + draw obstacles + collision
+  const PAD = P;
+  for (let i = obs.length - 1; i >= 0; i--) {
+    const o = obs[i];
+    o.x -= speed;
+    if (o.x + o.w < 0) { obs.splice(i, 1); continue; }
+    blit(o.sp, o.x, GROUND - o.h);
+    if (dino.x + PAD       < o.x + o.w - PAD &&
+        dino.x + DINO_W - PAD > o.x + PAD  &&
+        dino.y             > GROUND - o.h + PAD) {
+      return gameOver();
+    }
+  }
+
+  const lf = dino.y < GROUND ? 0 : (Math.floor(fc / 6) % 2 + 1);
+  drawDino(dino, lf);
+
+  if (fc % 10 === 0) {
+    score++;
+    if (score > best) best = score;
+    if (score >= 10) return win();
+  }
+
+  drawHUD(score, best);
+  raf = requestAnimationFrame(gameLoop);
+}
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+function renderFreeze() {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  drawClouds();
+  drawGround(fc * speed);
+  obs.forEach(o => blit(o.sp, o.x, GROUND - o.h));
+  drawDino(dino, 0);
+  drawHUD(score, best);
+}
+
+function gameOver() {
+  running = false;
+  renderFreeze();
+
+  ctx.fillStyle = 'rgba(247,247,247,0.82)';
+  ctx.fillRect(0, 180, W, 200);
+  ctx.fillStyle = INK;
+  ctx.font = 'bold 42px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GAME OVER', W / 2, 260);
+  ctx.font = '17px monospace';
+  ctx.fillStyle = '#888';
+  ctx.fillText('reach score 10 to win  •  SPACE or tap to retry', W / 2, 310);
+  gState = 'over';
+}
+
+function win() {
+  running = false;
+  renderFreeze();
+
+  ctx.fillStyle = 'rgba(247,247,247,0.92)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = INK;
+  ctx.font = 'bold 46px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('YOU WIN!', W / 2, H / 2 - 70);
+  ctx.font = '22px monospace';
+  ctx.fillText('The code is:', W / 2, H / 2 - 5);
+  ctx.font = 'bold 54px monospace';
+  ctx.fillText('XXXXX', W / 2, H / 2 + 70);
+  gState = 'won';
+}
+
+function drawStart() {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  drawClouds();
+  drawGround(0);
+  drawDino({ x: 100, y: GROUND }, 0);
+  ctx.fillStyle = INK;
+  ctx.font = '20px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SPACE  or  TAP  to  start', W / 2, H / 2 - 20);
+  ctx.fillStyle = '#999';
+  ctx.font = '15px monospace';
+  ctx.fillText('double jump allowed  •  reach score 10 to win', W / 2, H / 2 + 12);
+}
+
+function startGame() {
+  cancelAnimationFrame(raf);
+  init();
+  running = true;
+  raf = requestAnimationFrame(gameLoop);
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!running && gState !== 'won') startGame();
+    else jump();
+  }
+});
+
+function handleTap() {
+  if (!running && gState !== 'won') startGame();
+  else jump();
+}
+
+canvas.addEventListener('click', handleTap);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); handleTap(); }, { passive: false });
+
+gState = 'start'; fc = 0; speed = 0;
+drawStart();
+</script>
+</body>
+</html>
