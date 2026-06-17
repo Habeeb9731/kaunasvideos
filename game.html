@@ -157,6 +157,7 @@ function step() {
     score++;
     scoreEl.textContent = score;
     if (score > best) { best = score; bestEl.textContent = best; }
+    if (score >= 3) return win();
     spawnFood();
   } else {
     snake.pop();
@@ -168,20 +169,50 @@ function step() {
 function gameOver() {
   clearInterval(loop);
   running = false;
+  olTitle.style.color = '#ff4466';
   olTitle.textContent = 'GAME OVER';
-  olSub.textContent = `Score: ${score}`;
-  playBtn.textContent = 'PLAY AGAIN';
+  olSub.textContent = `Score: ${score} — try again!`;
+  olSub.style.color = '#ff4466';
+  playBtn.textContent = 'TRY AGAIN';
+  playBtn.style.background = '#ff4466';
   overlay.style.display = 'flex';
 
-  // flash red
   ctx.save();
   ctx.fillStyle = '#ff446622';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
 
+function win() {
+  clearInterval(loop);
+  running = false;
+  olTitle.style.color = '#00ffaa';
+  olTitle.textContent = '🎉 YOU WIN!';
+  olSub.style.color = '#00ffaa';
+  olSub.textContent = 'The code is:';
+  playBtn.textContent = 'kguhnj';
+  playBtn.style.background = '#00ffaa';
+  playBtn.style.fontSize = '1.6rem';
+  playBtn.style.letterSpacing = '6px';
+  playBtn.style.cursor = 'default';
+  playBtn.onclick = null;
+  overlay.style.display = 'flex';
+
+  ctx.save();
+  ctx.fillStyle = '#00ffaa11';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
 function startGame() {
   overlay.style.display = 'none';
+  olTitle.style.color = '#00ffaa';
+  olSub.style.color = '#aaa';
+  playBtn.style.background = '#00ffaa';
+  playBtn.style.fontSize = '1rem';
+  playBtn.style.letterSpacing = '3px';
+  playBtn.style.cursor = 'pointer';
+  playBtn.onclick = startGame;
   init();
   draw();
   running = true;
