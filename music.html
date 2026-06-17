@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Record Players</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #08080f;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #wrapper {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6%;
+    }
+
+    .player {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5%;
+      width: 24%;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Disc */
+    .disc-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+    }
+
+    /* Glow ring */
+    .disc-wrap::after {
+      content: '';
+      position: absolute;
+      inset: -8%;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    .player.playing .disc-wrap::after {
+      opacity: 1;
+      animation: ring 1.2s ease-out infinite;
+    }
+    @keyframes ring {
+      0%   { box-shadow: 0 0 0  0px rgba(255,140,0,0.55); }
+      60%  { box-shadow: 0 0 28px 18px rgba(255,140,0,0.18); }
+      100% { box-shadow: 0 0 0  0px rgba(255,140,0,0.0);  }
+    }
+
+    /* Image */
+    .disc-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
+      transition: filter 0.4s;
+      will-change: transform;
+    }
+    .player.playing .disc-wrap img {
+      animation: spin 2.4s linear infinite;
+      filter: brightness(1.15) drop-shadow(0 0 14px rgba(255,150,0,0.55));
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Sound bars */
+    .bars {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      height: 22px;
+    }
+    .bars span {
+      width: 5px;
+      border-radius: 3px;
+      background: #ff9900;
+      height: 3px;
+      transition: height 0.3s;
+    }
+    .player.playing .bars span { animation: bar 0.5s ease-in-out infinite alternate; }
+    .player.playing .bars span:nth-child(1) { animation-duration: 0.38s; animation-delay: 0.00s; }
+    .player.playing .bars span:nth-child(2) { animation-duration: 0.52s; animation-delay: 0.07s; }
+    .player.playing .bars span:nth-child(3) { animation-duration: 0.44s; animation-delay: 0.03s; }
+    .player.playing .bars span:nth-child(4) { animation-duration: 0.58s; animation-delay: 0.11s; }
+    .player.playing .bars span:nth-child(5) { animation-duration: 0.41s; animation-delay: 0.05s; }
+    @keyframes bar {
+      from { height: 3px; }
+      to   { height: 20px; }
+    }
+  </style>
+</head>
+<body>
+<div id="wrapper">
+
+  <div class="player" data-n="1">
+    <div class="disc-wrap">
+      <img src="recordplayer.jpg" alt="Player 1">
+    </div>
+    <div class="bars">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <div class="player" data-n="2">
+    <div class="disc-wrap">
+      <img src="recordplayer.jpg" alt="Player 2">
+    </div>
+    <div class="bars">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <div class="player" data-n="3">
+    <div class="disc-wrap">
+      <img src="recordplayer.jpg" alt="Player 3">
+    </div>
+    <div class="bars">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+
+</div>
+<script>
+const audios = [
+  new Audio('1.mp3'),
+  new Audio('2.mp3'),
+  new Audio('3.mp3'),
+];
+
+const players = Array.from(document.querySelectorAll('.player'));
+let activeIdx = -1;
+let stopTimer = null;
+
+function stopAll() {
+  clearTimeout(stopTimer);
+  if (activeIdx !== -1) {
+    audios[activeIdx].pause();
+    audios[activeIdx].currentTime = 0;
+    players[activeIdx].classList.remove('playing');
+    activeIdx = -1;
+  }
+}
+
+players.forEach((el, i) => {
+  el.addEventListener('click', () => {
+    if (activeIdx === i) { stopAll(); return; }
+    stopAll();
+    activeIdx = i;
+    el.classList.add('playing');
+    audios[i].currentTime = 0;
+    audios[i].play();
+    stopTimer = setTimeout(stopAll, 3000);
+  });
+});
+</script>
+</body>
+</html>
