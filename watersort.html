@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Water Sort</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #080814;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+    #wrapper {
+      width: 960px; height: 540px;
+      position: absolute;
+      top: 50%; left: 50%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px;
+    }
+    h1 { font-size: 2rem; letter-spacing: 8px; color: #44aaff; text-transform: uppercase; }
+    #info { font-size: 0.9rem; color: #666; letter-spacing: 2px; }
+    #info span { color: #44aaff; font-weight: bold; }
+
+    #tubes-container { display: flex; gap: 22px; align-items: flex-end; }
+
+    .tube-wrapper {
+      display: flex; flex-direction: column; align-items: center;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .tube-wrapper.selected { transform: translateY(-22px); }
+    .tube-wrapper.shake { animation: shake 0.3s ease; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    .tube-rim {
+      width: 78px; height: 10px;
+      border: 2.5px solid rgba(255,255,255,0.22);
+      border-bottom: none;
+      border-radius: 5px 5px 0 0;
+      background: rgba(255,255,255,0.04);
+    }
+    .tube-wrapper.selected .tube-rim { border-color: rgba(255,255,255,0.75); }
+
+    .tube {
+      width: 70px; height: 260px;
+      border: 2.5px solid rgba(255,255,255,0.22);
+      border-top: none;
+      border-radius: 0 0 35px 35px;
+      overflow: hidden;
+      display: flex; flex-direction: column-reverse;
+      background: rgba(255,255,255,0.03);
+      position: relative;
+    }
+    .tube-wrapper.selected .tube {
+      border-color: rgba(255,255,255,0.75);
+      box-shadow: 0 0 18px rgba(255,255,255,0.15);
+    }
+    .tube::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 55%, rgba(255,255,255,0.07) 80%, transparent 100%);
+      pointer-events: none;
+    }
+
+    .segment {
+      width: 100%; height: 65px; flex-shrink: 0;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+    .segment::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 40%;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
+      pointer-events: none;
+    }
+
+    #buttons { display: flex; gap: 16px; }
+    .btn {
+      padding: 8px 22px;
+      background: transparent;
+      border: 2px solid #44aaff44;
+      color: #44aaff99;
+      border-radius: 4px;
+      font-size: 0.8rem; letter-spacing: 2px;
+      cursor: pointer; text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    .btn:hover { border-color: #44aaff; color: #44aaff; background: #44aaff11; }
+
+    #overlay {
+      position: absolute; inset: 0;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; background: rgba(8,8,20,0.92);
+    }
+    #overlay h2 { font-size: 3rem; letter-spacing: 6px; color: #44aaff; }
+    #overlay p { color: #aaa; font-size: 1rem; }
+    #play-btn {
+      padding: 12px 40px; background: #44aaff; color: #080814;
+      border: none; border-radius: 4px;
+      font-size: 1rem; font-weight: bold; letter-spacing: 3px;
+      cursor: pointer; text-transform: uppercase;
+      transition: box-shadow 0.2s;
+    }
+    #play-btn:hover { box-shadow: 0 0 24px #44aaff88; }
+  </style>
+</head>
+<body>
+<div id="wrapper">
+  <h1>Water Sort</h1>
+  <div id="info">Moves: <span id="moves">0</span></div>
+  <div id="tubes-container"></div>
+  <div id="buttons">
+    <button class="btn" id="undo-btn">↩ Undo</button>
+    <button class="btn" id="new-btn">New Game</button>
+  </div>
+  <div id="overlay">
+    <h2>🎉 Solved!</h2>
+    <p id="final-msg">Completed in 0 moves</p>
+    <button id="play-btn">Play Again</button>
+  </div>
+</div>
+
+<script>
+const wrapper = document.getElementById('wrapper');
+function resize() {
+  const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
+  wrapper.style.transform = `translate(-50%, -50%) scale(${s})`;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const COLORS = {
+  R: '#ff4466',
+  B: '#4499ff',
+  G: '#33ffaa',
+  Y: '#ffdd33',
+};
+const KEYS = ['R', 'B', 'G', 'Y'];
+const CAP = 4;
+
+let tubes = [], selected = -1, moves = 0, history = [];
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function newGame() {
+  const segs = [];
+  for (const k of KEYS) for (let i = 0; i < CAP; i++) segs.push(k);
+  shuffle(segs);
+  tubes = [];
+  for (let i = 0; i < 4; i++) tubes.push(segs.slice(i * CAP, (i + 1) * CAP));
+  tubes.push([], []);
+  selected = -1; moves = 0; history = [];
+  document.getElementById('moves').textContent = 0;
+  document.getElementById('overlay').style.display = 'none';
+  render();
+}
+
+const top = t => t.length ? t[t.length - 1] : null;
+
+function topRun(t) {
+  if (!t.length) return 0;
+  const c = top(t); let n = 0;
+  for (let i = t.length - 1; i >= 0 && t[i] === c; i--) n++;
+  return n;
+}
+
+function canPour(f, t) {
+  if (f === t || !tubes[f].length) return false;
+  if (tubes[t].length >= CAP) return false;
+  return !tubes[t].length || top(tubes[f]) === top(tubes[t]);
+}
+
+function pour(f, t) {
+  history.push(tubes.map(x => [...x]));
+  const amt = Math.min(CAP - tubes[t].length, topRun(tubes[f]));
+  for (let i = 0; i < amt; i++) tubes[t].push(tubes[f].pop());
+  moves++;
+  document.getElementById('moves').textContent = moves;
+}
+
+function undo() {
+  if (!history.length) return;
+  tubes = history.pop();
+  moves = Math.max(0, moves - 1);
+  document.getElementById('moves').textContent = moves;
+  selected = -1; render();
+}
+
+function isWon() {
+  return tubes.every(t => !t.length || (t.length === CAP && t.every(c => c === t[0])));
+}
+
+function handleClick(i) {
+  if (selected === -1) {
+    if (!tubes[i].length) return;
+    selected = i; render();
+  } else if (selected === i) {
+    selected = -1; render();
+  } else if (canPour(selected, i)) {
+    pour(selected, i);
+    selected = -1; render();
+    if (isWon()) setTimeout(() => {
+      document.getElementById('final-msg').textContent = `Completed in ${moves} move${moves !== 1 ? 's' : ''}`;
+      document.getElementById('overlay').style.display = 'flex';
+    }, 350);
+  } else {
+    const prev = selected;
+    selected = tubes[i].length ? i : -1;
+    render();
+    if (prev !== -1 && !tubes[i].length) {
+      // shake the source tube
+      const el = document.querySelectorAll('.tube-wrapper')[prev];
+      el.classList.add('shake');
+      setTimeout(() => el.classList.remove('shake'), 350);
+    }
+  }
+}
+
+function render() {
+  const c = document.getElementById('tubes-container');
+  c.innerHTML = '';
+  tubes.forEach((tube, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tube-wrapper' + (selected === i ? ' selected' : '');
+    wrap.onclick = () => handleClick(i);
+
+    const rim = document.createElement('div');
+    rim.className = 'tube-rim';
+
+    const tubeEl = document.createElement('div');
+    const done = tube.length === CAP && tube.every(x => x === tube[0]);
+    tubeEl.className = 'tube';
+    if (done) tubeEl.style.boxShadow = `0 0 22px ${COLORS[tube[0]]}66, inset 0 0 12px ${COLORS[tube[0]]}22`;
+
+    tube.forEach(color => {
+      const seg = document.createElement('div');
+      seg.className = 'segment';
+      seg.style.background = `linear-gradient(to bottom, ${COLORS[color]}dd, ${COLORS[color]}bb)`;
+      tubeEl.appendChild(seg);
+    });
+
+    wrap.appendChild(rim);
+    wrap.appendChild(tubeEl);
+    c.appendChild(wrap);
+  });
+}
+
+document.getElementById('undo-btn').onclick = undo;
+document.getElementById('new-btn').onclick = newGame;
+document.getElementById('play-btn').onclick = newGame;
+newGame();
+</script>
+</body>
+</html>
