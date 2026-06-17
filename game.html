@@ -8,64 +8,65 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%; height: 100%;
-      background: #0f0f1a;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-family: 'Segoe UI', sans-serif;
-      color: #fff;
+      background: #0a0a14;
+      display: flex; align-items: center; justify-content: center;
       overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
     }
-    h1 { font-size: 2rem; letter-spacing: 6px; color: #00ffaa; margin-bottom: 8px; text-transform: uppercase; }
-    #score-bar { display: flex; gap: 40px; margin-bottom: 16px; font-size: 1rem; color: #aaa; }
-    #score-bar span { color: #00ffaa; font-weight: bold; }
-    canvas {
-      border: 2px solid #00ffaa33;
-      border-radius: 8px;
-      box-shadow: 0 0 40px #00ffaa22;
+    #wrapper {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
     }
+    canvas { width: 100%; height: 100%; display: block; border-radius: 0; }
+    #hud {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.5% 3%;
+      color: #fff; font-size: 1.4vw; letter-spacing: 2px;
+      pointer-events: none;
+    }
+    #hud span { color: #00ffaa; font-weight: bold; }
+    #hud h1 { font-size: 1.6vw; letter-spacing: 6px; color: #00ffaa; text-transform: uppercase; }
     #msg {
-      margin-top: 20px;
-      font-size: 0.9rem;
-      color: #555;
-      letter-spacing: 2px;
+      position: absolute; bottom: 2%; left: 50%; transform: translateX(-50%);
+      font-size: 1vw; color: #333; letter-spacing: 2px; pointer-events: none;
     }
     #overlay {
-      position: absolute;
+      position: absolute; inset: 0;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 12px;
+      gap: 1.5vh;
+      background: #0a0a14cc;
     }
-    #overlay h2 { font-size: 2.5rem; color: #00ffaa; letter-spacing: 4px; }
-    #overlay p { color: #aaa; font-size: 1rem; }
+    #overlay h2 { font-size: 4vw; letter-spacing: 6px; color: #00ffaa; }
+    #overlay p { color: #aaa; font-size: 1.4vw; }
     #play-btn {
-      margin-top: 10px;
-      padding: 12px 40px;
-      background: #00ffaa;
-      color: #0f0f1a;
-      border: none;
-      border-radius: 4px;
-      font-size: 1rem;
-      font-weight: bold;
-      letter-spacing: 3px;
-      cursor: pointer;
-      text-transform: uppercase;
+      margin-top: 1vh;
+      padding: 1.2vh 4vw;
+      background: #00ffaa; color: #0a0a14;
+      border: none; border-radius: 6px;
+      font-size: 1.2vw; font-weight: bold; letter-spacing: 3px;
+      cursor: pointer; text-transform: uppercase;
       transition: transform 0.1s, box-shadow 0.1s;
     }
-    #play-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px #00ffaa88; }
+    #play-btn:hover { transform: scale(1.05); box-shadow: 0 0 2vw #00ffaa88; }
   </style>
 </head>
 <body>
-  <h1>Snake</h1>
-  <div id="score-bar">Score: <span id="score">0</span> &nbsp; Best: <span id="best">0</span></div>
-  <div style="position:relative">
-    <canvas id="c" width="400" height="400"></canvas>
-    <div id="overlay">
-      <h2 id="ol-title">SNAKE</h2>
-      <p id="ol-sub">Use arrow keys or WASD</p>
-      <button id="play-btn">PLAY</button>
-    </div>
+<div id="wrapper">
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="hud">
+    <h1>Snake</h1>
+    <div>Score: <span id="score">0</span> &nbsp;&nbsp; Best: <span id="best">0</span></div>
   </div>
-  <div id="msg">↑ ↓ ← →  or  W A S D</div>
+  <div id="overlay">
+    <h2 id="ol-title">SNAKE</h2>
+    <p id="ol-sub">Use arrow keys or WASD</p>
+    <button id="play-btn">PLAY</button>
+  </div>
+  <div id="msg">↑ ↓ ← → or W A S D</div>
+</div>
 
 <script>
 const canvas = document.getElementById('c');
@@ -78,15 +79,14 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 
 const GRID = 20;
-const COLS = canvas.width / GRID;
-const ROWS = canvas.height / GRID;
+const COLS = canvas.width / GRID;   // 48
+const ROWS = canvas.height / GRID;  // 27
 
 let snake, dir, nextDir, food, score, best, loop, running;
-
 best = 0;
 
 function init() {
-  snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+  snake = [{ x: 24, y: 13 }, { x: 23, y: 13 }, { x: 22, y: 13 }];
   dir = { x: 1, y: 0 };
   nextDir = { x: 1, y: 0 };
   score = 0;
@@ -105,8 +105,15 @@ function spawnFood() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // bg gradient
+  const bg = ctx.createRadialGradient(480, 270, 0, 480, 270, 500);
+  bg.addColorStop(0, '#0f0f1f');
+  bg.addColorStop(1, '#06060e');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   // grid dots
-  ctx.fillStyle = '#ffffff08';
+  ctx.fillStyle = '#ffffff07';
   for (let x = 0; x < COLS; x++)
     for (let y = 0; y < ROWS; y++) {
       ctx.beginPath();
@@ -115,26 +122,21 @@ function draw() {
     }
 
   // food
-  const fx = food.x * GRID + GRID / 2;
-  const fy = food.y * GRID + GRID / 2;
   ctx.save();
-  ctx.shadowBlur = 16;
-  ctx.shadowColor = '#ff4466';
+  ctx.shadowBlur = 20; ctx.shadowColor = '#ff4466';
   ctx.fillStyle = '#ff4466';
   ctx.beginPath();
-  ctx.arc(fx, fy, GRID / 2 - 3, 0, Math.PI * 2);
+  ctx.arc(food.x * GRID + GRID / 2, food.y * GRID + GRID / 2, GRID / 2 - 3, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   // snake
   snake.forEach((seg, i) => {
-    const t = i / snake.length;
-    const alpha = 1 - t * 0.5;
+    const alpha = 1 - (i / snake.length) * 0.5;
     ctx.save();
     ctx.shadowBlur = i === 0 ? 20 : 0;
     ctx.shadowColor = '#00ffaa';
     ctx.fillStyle = i === 0 ? `rgba(0,255,170,${alpha})` : `rgba(0,200,120,${alpha})`;
-    const r = i === 0 ? GRID / 2 - 1 : GRID / 2 - 3;
     ctx.beginPath();
     ctx.roundRect(seg.x * GRID + 2, seg.y * GRID + 2, GRID - 4, GRID - 4, i === 0 ? 6 : 4);
     ctx.fill();
@@ -145,14 +147,9 @@ function draw() {
 function step() {
   dir = nextDir;
   const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-
-  // wall collision
   if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return gameOver();
-  // self collision
   if (snake.some(s => s.x === head.x && s.y === head.y)) return gameOver();
-
   snake.unshift(head);
-
   if (head.x === food.x && head.y === food.y) {
     score++;
     scoreEl.textContent = score;
@@ -162,81 +159,63 @@ function step() {
   } else {
     snake.pop();
   }
-
   draw();
 }
 
 function gameOver() {
-  clearInterval(loop);
-  running = false;
+  clearInterval(loop); running = false;
   olTitle.style.color = '#ff4466';
   olTitle.textContent = 'GAME OVER';
   olSub.textContent = `Score: ${score} — try again!`;
   olSub.style.color = '#ff4466';
   playBtn.textContent = 'TRY AGAIN';
   playBtn.style.background = '#ff4466';
+  playBtn.style.fontSize = ''; playBtn.style.letterSpacing = '';
+  playBtn.style.cursor = 'pointer'; playBtn.onclick = startGame;
   overlay.style.display = 'flex';
-
-  ctx.save();
-  ctx.fillStyle = '#ff446622';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  ctx.save(); ctx.fillStyle = '#ff446622'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
 }
 
 function win() {
-  clearInterval(loop);
-  running = false;
+  clearInterval(loop); running = false;
   olTitle.style.color = '#00ffaa';
   olTitle.textContent = '🎉 YOU WIN!';
   olSub.style.color = '#00ffaa';
   olSub.textContent = 'The code is:';
   playBtn.textContent = 'kguhnj';
   playBtn.style.background = '#00ffaa';
-  playBtn.style.fontSize = '1.6rem';
-  playBtn.style.letterSpacing = '6px';
-  playBtn.style.cursor = 'default';
-  playBtn.onclick = null;
+  playBtn.style.fontSize = '2.5vw';
+  playBtn.style.letterSpacing = '8px';
+  playBtn.style.cursor = 'default'; playBtn.onclick = null;
   overlay.style.display = 'flex';
-
-  ctx.save();
-  ctx.fillStyle = '#00ffaa11';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  ctx.save(); ctx.fillStyle = '#00ffaa11'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
 }
 
 function startGame() {
   overlay.style.display = 'none';
-  olTitle.style.color = '#00ffaa';
-  olSub.style.color = '#aaa';
-  playBtn.style.background = '#00ffaa';
-  playBtn.style.fontSize = '1rem';
-  playBtn.style.letterSpacing = '3px';
-  playBtn.style.cursor = 'pointer';
+  olTitle.style.color = '#00ffaa'; olSub.style.color = '#aaa';
+  playBtn.style.background = '#00ffaa'; playBtn.style.fontSize = '';
+  playBtn.style.letterSpacing = ''; playBtn.style.cursor = 'pointer';
   playBtn.onclick = startGame;
-  init();
-  draw();
-  running = true;
+  init(); draw(); running = true;
   loop = setInterval(step, 120);
 }
 
 playBtn.addEventListener('click', startGame);
-
 document.addEventListener('keydown', e => {
   if (!running) { if (e.key === 'Enter') startGame(); return; }
   const map = {
-    ArrowUp:    { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
-    ArrowDown:  { x: 0, y:  1 }, s: { x: 0, y:  1 }, S: { x: 0, y:  1 },
-    ArrowLeft:  { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
-    ArrowRight: { x: 1,  y: 0 }, d: { x: 1,  y: 0 }, D: { x: 1,  y: 0 },
+    ArrowUp: {x:0,y:-1}, w: {x:0,y:-1}, W: {x:0,y:-1},
+    ArrowDown: {x:0,y:1}, s: {x:0,y:1}, S: {x:0,y:1},
+    ArrowLeft: {x:-1,y:0}, a: {x:-1,y:0}, A: {x:-1,y:0},
+    ArrowRight: {x:1,y:0}, d: {x:1,y:0}, D: {x:1,y:0},
   };
   const nd = map[e.key];
   if (!nd) return;
-  if (nd.x === -dir.x && nd.y === -dir.y) return; // no reverse
-  nextDir = nd;
-  e.preventDefault();
+  if (nd.x === -dir.x && nd.y === -dir.y) return;
+  nextDir = nd; e.preventDefault();
 });
 
-// mobile swipe
 let tx, ty;
 canvas.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; });
 canvas.addEventListener('touchend', e => {
@@ -244,11 +223,11 @@ canvas.addEventListener('touchend', e => {
   const dx = e.changedTouches[0].clientX - tx;
   const dy = e.changedTouches[0].clientY - ty;
   if (Math.abs(dx) > Math.abs(dy)) {
-    const nd = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
-    if (!(nd.x === -dir.x)) nextDir = nd;
+    const nd = dx > 0 ? {x:1,y:0} : {x:-1,y:0};
+    if (nd.x !== -dir.x) nextDir = nd;
   } else {
-    const nd = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
-    if (!(nd.y === -dir.y)) nextDir = nd;
+    const nd = dy > 0 ? {x:0,y:1} : {x:0,y:-1};
+    if (nd.y !== -dir.y) nextDir = nd;
   }
 });
 

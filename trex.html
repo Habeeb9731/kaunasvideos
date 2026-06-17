@@ -8,60 +8,65 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%; height: 100%;
-      background: #1a1a2e;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-family: 'Segoe UI', sans-serif;
-      color: #fff;
+      background: #0a0a14;
+      display: flex; align-items: center; justify-content: center;
       overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
     }
-    h1 { font-size: 1.8rem; letter-spacing: 6px; color: #e94560; margin-bottom: 8px; text-transform: uppercase; }
-    #score-bar { display: flex; gap: 40px; margin-bottom: 14px; font-size: 1rem; color: #aaa; }
-    #score-bar span { color: #e94560; font-weight: bold; }
-    canvas {
-      border: 2px solid #e9456033;
-      border-radius: 8px;
-      box-shadow: 0 0 40px #e9456022;
-      background: #16213e;
+    #wrapper {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
     }
-    #msg { margin-top: 16px; font-size: 0.85rem; color: #444; letter-spacing: 2px; }
+    canvas { width: 100%; height: 100%; display: block; }
+    #hud {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.5% 3%;
+      color: #fff; font-size: 1.4vw; letter-spacing: 2px;
+      pointer-events: none;
+    }
+    #hud span { color: #e94560; font-weight: bold; }
+    #hud h1 { font-size: 1.6vw; letter-spacing: 6px; color: #e94560; text-transform: uppercase; }
+    #msg {
+      position: absolute; bottom: 2%; left: 50%; transform: translateX(-50%);
+      font-size: 1vw; color: #333; letter-spacing: 2px; pointer-events: none;
+    }
     #overlay {
-      position: absolute;
+      position: absolute; inset: 0;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 14px;
+      gap: 1.5vh;
+      background: #0a0a14cc;
     }
-    #overlay h2 { font-size: 2.4rem; letter-spacing: 4px; }
-    #overlay p { color: #aaa; font-size: 1rem; }
+    #overlay h2 { font-size: 4vw; letter-spacing: 6px; }
+    #overlay p { color: #aaa; font-size: 1.4vw; }
     #play-btn {
-      margin-top: 8px;
-      padding: 12px 40px;
-      background: #e94560;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      font-size: 1rem;
-      font-weight: bold;
-      letter-spacing: 3px;
-      cursor: pointer;
-      text-transform: uppercase;
+      margin-top: 1vh;
+      padding: 1.2vh 4vw;
+      background: #e94560; color: #fff;
+      border: none; border-radius: 6px;
+      font-size: 1.2vw; font-weight: bold; letter-spacing: 3px;
+      cursor: pointer; text-transform: uppercase;
       transition: transform 0.1s, box-shadow 0.1s;
     }
-    #play-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px #e9456088; }
+    #play-btn:hover { transform: scale(1.05); box-shadow: 0 0 2vw #e9456088; }
   </style>
 </head>
 <body>
-  <h1>T-Rex Run</h1>
-  <div id="score-bar">Score: <span id="score">0</span> &nbsp; Best: <span id="best">0</span></div>
-  <div style="position:relative">
-    <canvas id="c" width="600" height="200"></canvas>
-    <div id="overlay">
-      <h2 id="ol-title" style="color:#e94560">T-REX RUN</h2>
-      <p id="ol-sub">Press Space or tap to jump</p>
-      <button id="play-btn">PLAY</button>
-    </div>
+<div id="wrapper">
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="hud">
+    <h1>T-Rex Run</h1>
+    <div>Score: <span id="score">0</span> &nbsp;&nbsp; Best: <span id="best">0</span></div>
   </div>
-  <div id="msg">SPACE / TAP to jump &nbsp;·&nbsp; Double jump allowed</div>
+  <div id="overlay">
+    <h2 id="ol-title" style="color:#e94560">T-REX RUN</h2>
+    <p id="ol-sub">Press Space or tap to jump</p>
+    <button id="play-btn">PLAY</button>
+  </div>
+  <div id="msg">SPACE / TAP to jump · Double jump allowed</div>
+</div>
 
 <script>
 const canvas = document.getElementById('c');
@@ -74,38 +79,58 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 
 const W = canvas.width, H = canvas.height;
-const GROUND = H - 30;
-const GRAVITY = 0.6;
-const JUMP_FORCE = -13;
+const GROUND = H - 80;
+const GRAVITY = 0.7;
+const JUMP_FORCE = -16;
 
 let dino, obstacles, score, best, raf, running, speed, frameCount;
 best = 0;
 
 function resetDino() {
-  return { x: 80, y: GROUND, w: 40, h: 50, vy: 0, jumps: 0, leg: 0 };
+  return { x: 100, y: GROUND, w: 50, h: 64, vy: 0, jumps: 0, leg: 0 };
 }
 
 function init() {
   dino = resetDino();
   obstacles = [];
-  score = 0;
-  speed = 4;
-  frameCount = 0;
+  score = 0; speed = 5; frameCount = 0;
   scoreEl.textContent = 0;
 }
 
 function spawnObstacle() {
-  const h = 30 + Math.random() * 30;
-  const w = 18 + Math.random() * 14;
-  obstacles.push({ x: W + 20, y: GROUND - h + 50, w, h });
+  const h = 40 + Math.random() * 50;
+  const w = 24 + Math.random() * 18;
+  obstacles.push({ x: W + 30, y: GROUND - h + 64, w, h });
 }
 
 function jump() {
   if (!running) return;
-  if (dino.jumps < 2) {
-    dino.vy = JUMP_FORCE;
-    dino.jumps++;
+  if (dino.jumps < 2) { dino.vy = JUMP_FORCE; dino.jumps++; }
+}
+
+function drawBg() {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0d0d2b');
+  bg.addColorStop(1, '#1a0a1e');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // stars
+  ctx.fillStyle = '#ffffff18';
+  for (let i = 0; i < 60; i++) {
+    const x = (i * 137 + frameCount * 0.15) % W;
+    const y = (i * 83) % (GROUND - 20);
+    ctx.beginPath();
+    ctx.arc(x, y, i % 3 === 0 ? 1.5 : 1, 0, Math.PI * 2);
+    ctx.fill();
   }
+
+  // ground line
+  ctx.save();
+  ctx.strokeStyle = '#e9456055';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, GROUND + 64); ctx.lineTo(W, GROUND + 64); ctx.stroke();
+  ctx.restore();
 }
 
 function drawDino(d) {
@@ -114,41 +139,25 @@ function drawDino(d) {
   grd.addColorStop(0, '#00d4ff');
   grd.addColorStop(1, '#0077cc');
   ctx.fillStyle = grd;
-  ctx.shadowBlur = 12;
-  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 16; ctx.shadowColor = '#00d4ff';
 
-  // body
   ctx.beginPath();
-  ctx.roundRect(d.x, d.y - d.h + 14, d.w, d.h - 14, 8);
+  ctx.roundRect(d.x, d.y - d.h + 18, d.w, d.h - 18, 10);
   ctx.fill();
 
-  // head
   ctx.beginPath();
-  ctx.roundRect(d.x + d.w - 18, d.y - d.h, 24, 20, 6);
+  ctx.roundRect(d.x + d.w - 22, d.y - d.h, 30, 26, 8);
   ctx.fill();
 
-  // eye
-  ctx.fillStyle = '#fff';
-  ctx.shadowBlur = 0;
-  ctx.beginPath();
-  ctx.arc(d.x + d.w + 2, d.y - d.h + 7, 4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.arc(d.x + d.w + 4, d.y - d.h + 9, 5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#0a0a1a';
-  ctx.beginPath();
-  ctx.arc(d.x + d.w + 3, d.y - d.h + 7, 2, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(d.x + d.w + 5, d.y - d.h + 9, 2.5, 0, Math.PI * 2); ctx.fill();
 
-  // legs (animated on ground)
   ctx.fillStyle = '#0077cc';
-  ctx.shadowBlur = 0;
-  const legOffset = d.jumps === 0 ? Math.sin(d.leg) * 6 : 0;
-  ctx.beginPath();
-  ctx.roundRect(d.x + 4, d.y - 14, 10, 14 + legOffset, 3);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.roundRect(d.x + 20, d.y - 14, 10, 14 - legOffset, 3);
-  ctx.fill();
-
+  const lo = d.jumps === 0 ? Math.sin(d.leg) * 8 : 0;
+  ctx.beginPath(); ctx.roundRect(d.x + 6, d.y - 18, 13, 18 + lo, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(d.x + 26, d.y - 18, 13, 18 - lo, 4); ctx.fill();
   ctx.restore();
 }
 
@@ -158,53 +167,15 @@ function drawCactus(o) {
   grd.addColorStop(0, '#ff6b35');
   grd.addColorStop(1, '#c0392b');
   ctx.fillStyle = grd;
-  ctx.shadowBlur = 10;
-  ctx.shadowColor = '#ff6b35';
-  ctx.beginPath();
-  ctx.roundRect(o.x, o.y, o.w, o.h, 4);
-  ctx.fill();
-  // arms
-  ctx.beginPath();
-  ctx.roundRect(o.x - 8, o.y + o.h * 0.3, 8, o.h * 0.25, 3);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.roundRect(o.x + o.w, o.y + o.h * 0.45, 8, o.h * 0.2, 3);
-  ctx.fill();
+  ctx.shadowBlur = 14; ctx.shadowColor = '#ff6b35';
+  ctx.beginPath(); ctx.roundRect(o.x, o.y, o.w, o.h, 5); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(o.x - 12, o.y + o.h * 0.3, 12, o.h * 0.25, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(o.x + o.w, o.y + o.h * 0.45, 12, o.h * 0.2, 4); ctx.fill();
   ctx.restore();
-}
-
-function drawGround() {
-  ctx.save();
-  ctx.strokeStyle = '#e9456044';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND + 50);
-  ctx.lineTo(W, GROUND + 50);
-  ctx.stroke();
-  // dashes
-  ctx.strokeStyle = '#e9456022';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([20, 30]);
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND + 50);
-  ctx.lineTo(W, GROUND + 50);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawStars() {
-  ctx.fillStyle = '#ffffff15';
-  for (let i = 0; i < 30; i++) {
-    const x = (i * 73 + frameCount * 0.2) % W;
-    const y = (i * 47) % (GROUND + 40);
-    ctx.beginPath();
-    ctx.arc(x, y, 1, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function checkCollision(d, o) {
-  const pad = 6;
+  const pad = 8;
   return (
     d.x + pad < o.x + o.w &&
     d.x + d.w - pad > o.x + pad &&
@@ -216,29 +187,18 @@ function checkCollision(d, o) {
 function gameLoop() {
   if (!running) return;
   frameCount++;
-
   ctx.clearRect(0, 0, W, H);
-  drawStars();
-  drawGround();
+  drawBg();
 
-  // physics
   dino.vy += GRAVITY;
   dino.y += dino.vy;
-  if (dino.y >= GROUND) {
-    dino.y = GROUND;
-    dino.vy = 0;
-    dino.jumps = 0;
-  }
+  if (dino.y >= GROUND) { dino.y = GROUND; dino.vy = 0; dino.jumps = 0; }
   if (dino.jumps === 0) dino.leg += 0.25;
 
-  // speed ramp
   speed += 0.001;
-
-  // spawn obstacles
-  const gap = Math.max(60, 120 - score * 4);
+  const gap = Math.max(55, 110 - score * 3);
   if (frameCount % gap === 0) spawnObstacle();
 
-  // update & draw obstacles
   obstacles = obstacles.filter(o => o.x + o.w > 0);
   for (const o of obstacles) {
     o.x -= speed;
@@ -248,7 +208,6 @@ function gameLoop() {
 
   drawDino(dino);
 
-  // score every 10 frames
   if (frameCount % 10 === 0) {
     score++;
     scoreEl.textContent = score;
@@ -260,43 +219,33 @@ function gameLoop() {
 }
 
 function gameOver() {
-  running = false;
-  cancelAnimationFrame(raf);
-  olTitle.textContent = 'GAME OVER';
-  olTitle.style.color = '#e94560';
-  olSub.textContent = `Score: ${score} — reach 10 to win!`;
-  olSub.style.color = '#e94560';
-  playBtn.textContent = 'TRY AGAIN';
-  playBtn.style.background = '#e94560';
-  playBtn.style.fontSize = '1rem';
-  playBtn.style.letterSpacing = '3px';
-  playBtn.style.cursor = 'pointer';
-  playBtn.onclick = startGame;
+  running = false; cancelAnimationFrame(raf);
+  olTitle.textContent = 'GAME OVER'; olTitle.style.color = '#e94560';
+  olSub.textContent = `Score: ${score} — reach 10 to win!`; olSub.style.color = '#e94560';
+  playBtn.textContent = 'TRY AGAIN'; playBtn.style.background = '#e94560';
+  playBtn.style.fontSize = ''; playBtn.style.letterSpacing = '';
+  playBtn.style.cursor = 'pointer'; playBtn.onclick = startGame;
   overlay.style.display = 'flex';
 }
 
 function win() {
-  running = false;
-  cancelAnimationFrame(raf);
-  olTitle.textContent = '🎉 YOU WIN!';
-  olTitle.style.color = '#00d4ff';
-  olSub.textContent = 'The code is:';
-  olSub.style.color = '#00d4ff';
+  running = false; cancelAnimationFrame(raf);
+  olTitle.textContent = '🎉 YOU WIN!'; olTitle.style.color = '#00d4ff';
+  olSub.textContent = 'The code is:'; olSub.style.color = '#00d4ff';
   playBtn.textContent = 'tyhgi';
-  playBtn.style.background = '#00d4ff';
-  playBtn.style.color = '#0a0a1a';
-  playBtn.style.fontSize = '1.8rem';
-  playBtn.style.letterSpacing = '8px';
-  playBtn.style.cursor = 'default';
-  playBtn.onclick = null;
+  playBtn.style.background = '#00d4ff'; playBtn.style.color = '#0a0a1a';
+  playBtn.style.fontSize = '2.5vw'; playBtn.style.letterSpacing = '8px';
+  playBtn.style.cursor = 'default'; playBtn.onclick = null;
   overlay.style.display = 'flex';
 }
 
 function startGame() {
   overlay.style.display = 'none';
-  init();
-  running = true;
-  raf = requestAnimationFrame(gameLoop);
+  olTitle.style.color = '#e94560'; olSub.style.color = '#aaa';
+  playBtn.style.background = '#e94560'; playBtn.style.color = '#fff';
+  playBtn.style.fontSize = ''; playBtn.style.letterSpacing = '';
+  playBtn.style.cursor = 'pointer'; playBtn.onclick = startGame;
+  init(); running = true; raf = requestAnimationFrame(gameLoop);
 }
 
 playBtn.addEventListener('click', startGame);
