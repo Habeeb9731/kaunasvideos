@@ -9,154 +9,78 @@
     html, body {
       width: 100%; height: 100%;
       background: #080814;
+      display: flex; align-items: center; justify-content: center;
       overflow: hidden;
-      font-family: 'Segoe UI', sans-serif;
-      color: #fff;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 2vh;
     }
-    h1 { font-size: 2.4vw; letter-spacing: 0.6vw; color: #44aaff; text-transform: uppercase; }
-    #info { font-size: 1.1vw; color: #666; letter-spacing: 0.2vw; }
-    #info span { color: #44aaff; font-weight: bold; }
-
-    #tubes-container {
-      display: flex;
-      gap: 1.8vw;
-      align-items: flex-end;
+    #wrapper {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
     }
-
-    .tube-wrapper {
-      display: flex; flex-direction: column; align-items: center;
-      cursor: pointer;
-      transition: transform 0.2s ease;
-    }
-    .tube-wrapper.selected { transform: translateY(-2.5vh); }
-    .tube-wrapper.shake { animation: shake 0.3s ease; }
-    @keyframes shake {
-      0%,100% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      75% { transform: translateX(4px); }
-    }
-
-    .tube-rim {
-      width: calc(6.5vw + 8px);
-      height: 0.8vh;
-      border: 2px solid rgba(255,255,255,0.22);
-      border-bottom: none;
-      border-radius: 4px 4px 0 0;
-    }
-    .tube-wrapper.selected .tube-rim { border-color: rgba(255,255,255,0.75); }
-
-    .tube {
-      width: 6.5vw;
-      height: calc(4 * 6.5vw);
-      border: 2px solid rgba(255,255,255,0.22);
-      border-top: none;
-      border-radius: 0 0 3.25vw 3.25vw;
-      overflow: hidden;
-      display: flex; flex-direction: column-reverse;
-      background: rgba(255,255,255,0.03);
-      position: relative;
-    }
-    .tube-wrapper.selected .tube {
-      border-color: rgba(255,255,255,0.75);
-      box-shadow: 0 0 1.5vw rgba(255,255,255,0.15);
-    }
-
-    .segment {
-      width: 100%;
-      height: 6.5vw;
-      flex-shrink: 0;
-    }
-
-    #buttons { display: flex; gap: 1.2vw; }
-    .btn {
-      padding: 0.7vh 2vw;
-      background: transparent;
-      border: 2px solid #44aaff44;
-      color: #44aaff99;
-      border-radius: 4px;
-      font-size: 0.85vw; letter-spacing: 0.15vw;
-      cursor: pointer; text-transform: uppercase;
-      transition: all 0.2s;
-    }
-    .btn:hover { border-color: #44aaff; color: #44aaff; background: #44aaff11; }
-
-    #overlay {
-      position: fixed; inset: 0;
-      display: none; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 2vh; background: rgba(8,8,20,0.92);
-      z-index: 10;
-    }
-    #overlay h2 { font-size: 4vw; letter-spacing: 0.5vw; color: #44aaff; }
-    #overlay p { color: #aaa; font-size: 1.2vw; }
-    #play-btn {
-      padding: 1.2vh 3vw; background: #44aaff; color: #080814;
-      border: none; border-radius: 4px;
-      font-size: 1vw; font-weight: bold; letter-spacing: 0.3vw;
-      cursor: pointer; text-transform: uppercase;
-      transition: box-shadow 0.2s;
-    }
-    #play-btn:hover { box-shadow: 0 0 2vw #44aaff88; }
+    canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Water Sort</h1>
-  <div id="info">Moves: <span id="moves">0</span></div>
-  <div id="tubes-container"></div>
-  <div id="buttons">
-    <button class="btn" id="undo-btn">↩ Undo</button>
-    <button class="btn" id="new-btn">New Game</button>
-  </div>
-  <div id="overlay">
-    <h2>🎉 Solved!</h2>
-    <p id="final-msg">Completed in 0 moves</p>
-    <button id="play-btn">Play Again</button>
-  </div>
-
+<div id="wrapper">
+  <canvas id="c" width="960" height="540"></canvas>
+</div>
 <script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 960, H = 540;
+
 const COLORS = { R: '#ff4466', B: '#4499ff', G: '#33ffaa', Y: '#ffdd33' };
 const KEYS = ['R','B','G','Y'];
 const CAP = 4;
 
-let tubes = [], selected = -1, moves = 0, history = [];
+const TUBE_W   = 66;
+const SEG_H    = 66;
+const TUBE_H   = SEG_H * CAP;   // 264
+const TUBE_GAP = 32;
+const N_TUBES  = 6;
+const TOTAL_W  = N_TUBES * TUBE_W + (N_TUBES - 1) * TUBE_GAP; // 556
+const TX0      = Math.round((W - TOTAL_W) / 2);               // 202
+const TUBE_TOP = 130;
+const RIM_H    = 10;
+const LIFT     = 24;
+
+const BTN_Y = 450, BTN_H = 40, BTN_W = 140;
+const UNDO_X = W / 2 - BTN_W - 15;
+const NEW_X  = W / 2 + 15;
+
+let tubes = [], selected = -1, moves = 0, history = [], gameState = 'game';
+
+function tubeX(i) { return TX0 + i * (TUBE_W + TUBE_GAP); }
 
 function shuffle(a) {
-  for (let i = a.length-1; i > 0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return a;
 }
 
 function newGame() {
   const segs = [];
-  for (const k of KEYS) for (let i = 0; i < CAP; i++) segs.push(k);
+  KEYS.forEach(k => { for (let i = 0; i < CAP; i++) segs.push(k); });
   shuffle(segs);
   tubes = [];
-  for (let i = 0; i < 4; i++) tubes.push(segs.slice(i*CAP, (i+1)*CAP));
+  for (let i = 0; i < 4; i++) tubes.push(segs.slice(i * CAP, (i + 1) * CAP));
   tubes.push([], []);
-  selected = -1; moves = 0; history = [];
-  document.getElementById('moves').textContent = 0;
-  document.getElementById('overlay').style.display = 'none';
-  render();
+  selected = -1; moves = 0; history = []; gameState = 'game';
+  draw();
 }
 
-const top = t => t.length ? t[t.length-1] : null;
+const topColor = t => t.length ? t[t.length - 1] : null;
 
 function topRun(t) {
   if (!t.length) return 0;
-  const c = top(t); let n = 0;
-  for (let i = t.length-1; i >= 0 && t[i] === c; i--) n++;
+  const c = topColor(t); let n = 0;
+  for (let i = t.length - 1; i >= 0 && t[i] === c; i--) n++;
   return n;
 }
 
 function canPour(f, t) {
-  if (f === t || !tubes[f].length) return false;
-  if (tubes[t].length >= CAP) return false;
-  return !tubes[t].length || top(tubes[f]) === top(tubes[t]);
+  if (f === t || !tubes[f].length || tubes[t].length >= CAP) return false;
+  return !tubes[t].length || topColor(tubes[f]) === topColor(tubes[t]);
 }
 
 function pour(f, t) {
@@ -164,72 +88,219 @@ function pour(f, t) {
   const amt = Math.min(CAP - tubes[t].length, topRun(tubes[f]));
   for (let i = 0; i < amt; i++) tubes[t].push(tubes[f].pop());
   moves++;
-  document.getElementById('moves').textContent = moves;
 }
 
 function undo() {
   if (!history.length) return;
-  tubes = history.pop();
-  moves = Math.max(0, moves-1);
-  document.getElementById('moves').textContent = moves;
-  selected = -1; render();
+  tubes = history.pop(); moves = Math.max(0, moves - 1); selected = -1; draw();
 }
 
 function isWon() {
   return tubes.every(t => !t.length || (t.length === CAP && t.every(c => c === t[0])));
 }
 
-function handleClick(i) {
+function handleTubeClick(i) {
+  if (gameState !== 'game') return;
   if (selected === -1) {
     if (!tubes[i].length) return;
-    selected = i; render();
+    selected = i;
   } else if (selected === i) {
-    selected = -1; render();
+    selected = -1;
   } else if (canPour(selected, i)) {
     pour(selected, i);
-    selected = -1; render();
-    if (isWon()) setTimeout(() => {
-      document.getElementById('final-msg').textContent = `Completed in ${moves} move${moves!==1?'s':''}`;
-      document.getElementById('overlay').style.display = 'flex';
-    }, 350);
+    selected = -1;
+    if (isWon()) gameState = 'won';
   } else {
     selected = tubes[i].length ? i : -1;
-    render();
+  }
+  draw();
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+function tubePath(x, y) {
+  const r = TUBE_W / 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + TUBE_W, y);
+  ctx.lineTo(x + TUBE_W, y + TUBE_H - r);
+  ctx.arcTo(x + TUBE_W, y + TUBE_H, x + TUBE_W - r, y + TUBE_H, r);
+  ctx.lineTo(x + r, y + TUBE_H);
+  ctx.arcTo(x, y + TUBE_H, x, y + TUBE_H - r, r);
+  ctx.lineTo(x, y);
+  ctx.closePath();
+}
+
+function drawTube(i) {
+  const tx = tubeX(i);
+  const ty = TUBE_TOP - (selected === i ? LIFT : 0);
+  const tube = tubes[i];
+  const isSel = selected === i;
+  const isDone = tube.length === CAP && tube.every(c => c === tube[0]);
+
+  ctx.save();
+  tubePath(tx, ty);
+  ctx.clip();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.fillRect(tx, ty, TUBE_W, TUBE_H);
+
+  for (let s = 0; s < tube.length; s++) {
+    const segY = ty + TUBE_H - (s + 1) * SEG_H;
+    ctx.fillStyle = COLORS[tube[s]];
+    ctx.fillRect(tx, segY, TUBE_W, SEG_H);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(tx, segY, TUBE_W, 3);
+  }
+  ctx.restore();
+
+  ctx.save();
+  if (isDone) { ctx.shadowBlur = 18; ctx.shadowColor = COLORS[tube[0]]; }
+  ctx.strokeStyle = isDone ? COLORS[tube[0]] + 'cc'
+                  : isSel  ? 'rgba(255,255,255,0.85)'
+                  :          'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 2;
+  tubePath(tx, ty);
+  ctx.stroke();
+  ctx.restore();
+
+  // Rim
+  ctx.save();
+  ctx.strokeStyle = isSel ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(tx - 4, ty);
+  ctx.lineTo(tx - 4, ty - RIM_H + 3);
+  ctx.arcTo(tx - 4, ty - RIM_H, tx - 1, ty - RIM_H, 3);
+  ctx.lineTo(tx + TUBE_W + 1, ty - RIM_H);
+  ctx.arcTo(tx + TUBE_W + 4, ty - RIM_H, tx + TUBE_W + 4, ty - RIM_H + 3, 3);
+  ctx.lineTo(tx + TUBE_W + 4, ty);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBtn(x, y, w, h, label, hover) {
+  ctx.save();
+  roundRect(x, y, w, h, 5);
+  ctx.fillStyle = hover ? '#44aaff22' : 'transparent';
+  ctx.fill();
+  ctx.strokeStyle = hover ? '#44aaffcc' : '#44aaff44';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = hover ? '#44aaff' : '#44aaff88';
+  ctx.font = '13px "Segoe UI",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+let hoverBtn = null;
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.fillStyle = '#080814';
+  ctx.fillRect(0, 0, W, H);
+
+  // Title
+  ctx.fillStyle = '#44aaff';
+  ctx.font = 'bold 26px "Segoe UI",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('WATER  SORT', W / 2, 46);
+
+  // Moves
+  ctx.fillStyle = '#555';
+  ctx.font = '13px "Segoe UI",sans-serif';
+  ctx.fillText('MOVES:  ' + moves, W / 2, 82);
+
+  for (let i = 0; i < tubes.length; i++) drawTube(i);
+
+  drawBtn(UNDO_X, BTN_Y, BTN_W, BTN_H, '↩  UNDO',    hoverBtn === 'undo');
+  drawBtn(NEW_X,  BTN_Y, BTN_W, BTN_H, 'NEW GAME', hoverBtn === 'new');
+
+  if (gameState === 'won') {
+    ctx.fillStyle = 'rgba(8,8,20,0.92)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#44aaff';
+    ctx.font = 'bold 52px "Segoe UI",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SOLVED!', W / 2, H / 2 - 65);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '18px "Segoe UI",sans-serif';
+    ctx.fillText('Completed in ' + moves + ' move' + (moves !== 1 ? 's' : ''), W / 2, H / 2 - 12);
+
+    const bx = W / 2 - 90, by = H / 2 + 30, bw = 180, bh = 48;
+    roundRect(bx, by, bw, bh, 8);
+    ctx.fillStyle = '#44aaff';
+    ctx.fill();
+    ctx.fillStyle = '#080814';
+    ctx.font = 'bold 15px "Segoe UI",sans-serif';
+    ctx.fillText('PLAY AGAIN', W / 2, by + bh / 2);
   }
 }
 
-function render() {
-  const c = document.getElementById('tubes-container');
-  c.innerHTML = '';
-  tubes.forEach((tube, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'tube-wrapper' + (selected === i ? ' selected' : '');
-    wrap.onclick = () => handleClick(i);
+// ── Input ────────────────────────────────────────────────────────────────────
 
-    const rim = document.createElement('div');
-    rim.className = 'tube-rim';
-
-    const tubeEl = document.createElement('div');
-    tubeEl.className = 'tube';
-    const done = tube.length === CAP && tube.every(x => x === tube[0]);
-    if (done) tubeEl.style.boxShadow = `0 0 1.5vw ${COLORS[tube[0]]}88`;
-
-    tube.forEach(color => {
-      const seg = document.createElement('div');
-      seg.className = 'segment';
-      seg.style.background = `linear-gradient(to bottom, ${COLORS[color]}ee, ${COLORS[color]}bb)`;
-      tubeEl.appendChild(seg);
-    });
-
-    wrap.appendChild(rim);
-    wrap.appendChild(tubeEl);
-    c.appendChild(wrap);
-  });
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = W / rect.width, sy = H / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
 }
 
-document.getElementById('undo-btn').onclick = undo;
-document.getElementById('new-btn').onclick = newGame;
-document.getElementById('play-btn').onclick = newGame;
+function onClick(x, y) {
+  if (gameState === 'won') {
+    const bx = W/2-90, by = H/2+30, bw = 180, bh = 48;
+    if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) newGame();
+    return;
+  }
+
+  for (let i = 0; i < tubes.length; i++) {
+    const tx = tubeX(i);
+    const ty = TUBE_TOP - (selected === i ? LIFT : 0);
+    if (x >= tx-4 && x <= tx+TUBE_W+4 && y >= ty-RIM_H && y <= ty+TUBE_H+4) {
+      handleTubeClick(i); return;
+    }
+  }
+
+  if (y >= BTN_Y && y <= BTN_Y + BTN_H) {
+    if (x >= UNDO_X && x <= UNDO_X + BTN_W) undo();
+    else if (x >= NEW_X && x <= NEW_X + BTN_W) newGame();
+  }
+}
+
+canvas.addEventListener('click', e => { const p = getPos(e); onClick(p.x, p.y); });
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = getPos(e); onClick(p.x, p.y);
+}, { passive: false });
+
+canvas.addEventListener('mousemove', e => {
+  const { x, y } = getPos(e);
+  let h = null;
+  if (y >= BTN_Y && y <= BTN_Y + BTN_H) {
+    if (x >= UNDO_X && x <= UNDO_X + BTN_W) h = 'undo';
+    else if (x >= NEW_X && x <= NEW_X + BTN_W) h = 'new';
+  }
+  if (h !== hoverBtn) { hoverBtn = h; draw(); }
+});
+
 newGame();
 </script>
 </body>
