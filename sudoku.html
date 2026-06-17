@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sudoku</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #080814;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #wrapper {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+    }
+    canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div id="wrapper"><canvas id="c" width="960" height="540"></canvas></div>
+<script>
+const W = 960, H = 540;
+const CELL = 50;
+const GX = 30, GY = 45;
+const GSIZE = CELL * 9; // 450
+
+const PUZZLE = [
+  [5,3,0, 0,7,0, 0,0,0],
+  [6,0,0, 1,9,5, 0,0,0],
+  [0,9,8, 0,0,0, 0,6,0],
+  [8,0,0, 0,6,0, 0,0,3],
+  [4,0,0, 8,0,3, 0,0,1],
+  [7,0,0, 0,2,0, 0,0,6],
+  [0,6,0, 0,0,0, 2,8,0],
+  [0,0,0, 4,1,9, 0,0,5],
+  [0,0,0, 0,8,0, 0,7,9],
+];
+const SOL = [
+  [5,3,4, 6,7,8, 9,1,2],
+  [6,7,2, 1,9,5, 3,4,8],
+  [1,9,8, 3,4,2, 5,6,7],
+  [8,5,9, 7,6,1, 4,2,3],
+  [4,2,6, 8,5,3, 7,9,1],
+  [7,1,3, 9,2,4, 8,5,6],
+  [9,6,1, 5,3,7, 2,8,4],
+  [2,8,7, 4,1,9, 6,3,5],
+  [3,4,5, 2,8,6, 1,7,9],
+];
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let board, given, sel, gState;
+
+function init() {
+  board = PUZZLE.map(r => [...r]);
+  given = PUZZLE.map(r => r.map(v => v !== 0));
+  sel = null;
+  gState = 'play';
+  draw();
+}
+
+function isWon() {
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++)
+      if (board[r][c] !== SOL[r][c]) return false;
+  return true;
+}
+
+// ── Number pad ───────────────────────────────────────────────────────────────
+const NPX = 530, NPY = 95;
+const NW = 70, NH = 56, NGAP = 10;
+
+function npRect(i) {
+  if (i < 9) return { x: NPX + (i%3)*(NW+NGAP), y: NPY + Math.floor(i/3)*(NH+NGAP), w: NW, h: NH };
+  return { x: NPX, y: NPY + 3*(NH+NGAP), w: 3*NW+2*NGAP, h: NH };
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#080814';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#4499ff';
+  ctx.font = 'bold 26px "Segoe UI",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SUDOKU', GX + GSIZE / 2, 22);
+
+  drawGrid();
+  drawPad();
+  if (gState === 'won') drawWin();
+}
+
+function drawGrid() {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const x = GX + c * CELL, y = GY + r * CELL;
+
+      let bg = '#0d0d20';
+      if (sel) {
+        if (sel.r === r && sel.c === c) bg = '#1a2850';
+        else if (sel.r === r || sel.c === c ||
+                 (Math.floor(sel.r/3) === Math.floor(r/3) && Math.floor(sel.c/3) === Math.floor(c/3)))
+          bg = '#0f1530';
+      }
+      ctx.fillStyle = bg;
+      ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+
+      if (board[r][c]) {
+        const wrong = board[r][c] !== SOL[r][c];
+        ctx.fillStyle = given[r][c] ? '#4499ff' : wrong ? '#ff4466' : '#00ffcc';
+        ctx.font = given[r][c] ? 'bold 28px monospace' : '26px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(board[r][c], x + CELL/2, y + CELL/2);
+      }
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(68,153,255,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 9; i++) {
+    ctx.beginPath(); ctx.moveTo(GX+i*CELL, GY); ctx.lineTo(GX+i*CELL, GY+GSIZE); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(GX, GY+i*CELL); ctx.lineTo(GX+GSIZE, GY+i*CELL); ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#4499ff';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i <= 3; i++) {
+    ctx.beginPath(); ctx.moveTo(GX+i*3*CELL, GY); ctx.lineTo(GX+i*3*CELL, GY+GSIZE); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(GX, GY+i*3*CELL); ctx.lineTo(GX+GSIZE, GY+i*3*CELL); ctx.stroke();
+  }
+}
+
+function drawPad() {
+  ctx.fillStyle = '#4499ff';
+  ctx.font = 'bold 13px "Segoe UI",sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SELECT NUMBER', NPX, NPY - 22);
+
+  for (let i = 0; i <= 9; i++) {
+    const { x, y, w, h } = npRect(i);
+    ctx.fillStyle = i < 9 ? '#0d1525' : '#1a0810';
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 7); ctx.fill();
+    ctx.strokeStyle = i < 9 ? 'rgba(0,255,204,0.4)' : 'rgba(255,68,102,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (i < 9) {
+      ctx.fillStyle = '#00ffcc';
+      ctx.font = 'bold 24px monospace';
+      ctx.fillText(i + 1, x + w/2, y + h/2);
+    } else {
+      ctx.fillStyle = '#ff4466';
+      ctx.font = 'bold 13px "Segoe UI",sans-serif';
+      ctx.fillText('ERASE', x + w/2, y + h/2);
+    }
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.font = '13px "Segoe UI",sans-serif';
+  ctx.textAlign = 'left';
+  const iy = NPY + 3*(NH+NGAP) + NH + 22;
+  ctx.fillText('Click cell → click number', NPX, iy);
+  ctx.fillText('or press 1–9 on keyboard', NPX, iy + 20);
+  ctx.fillText('Arrow keys to navigate', NPX, iy + 40);
+}
+
+function drawWin() {
+  ctx.fillStyle = 'rgba(8,8,20,0.93)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#4499ff';
+  ctx.font = 'bold 48px "Segoe UI",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🎉 YOU WIN!', W/2, H/2 - 60);
+  ctx.font = '22px "Segoe UI",sans-serif';
+  ctx.fillText('The code is:', W/2, H/2 + 10);
+  ctx.font = 'bold 56px "Segoe UI",sans-serif';
+  ctx.fillText('hsrtg', W/2, H/2 + 80);
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = W / rect.width, sy = H / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
+}
+
+function enter(n) {
+  if (!sel || given[sel.r][sel.c] || gState !== 'play') return;
+  board[sel.r][sel.c] = n;
+  if (n !== 0 && isWon()) gState = 'won';
+  draw();
+}
+
+function handleClick(x, y) {
+  if (gState === 'won') return;
+  const c = Math.floor((x - GX) / CELL), r = Math.floor((y - GY) / CELL);
+  if (c >= 0 && c < 9 && r >= 0 && r < 9) { sel = { r, c }; draw(); return; }
+  for (let i = 0; i <= 9; i++) {
+    const b = npRect(i);
+    if (x >= b.x && x <= b.x+b.w && y >= b.y && y <= b.y+b.h) { enter(i < 9 ? i+1 : 0); return; }
+  }
+}
+
+canvas.addEventListener('click', e => { const p = getPos(e); handleClick(p.x, p.y); });
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = getPos(e); handleClick(p.x, p.y);
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (gState === 'won') return;
+  if (e.key >= '1' && e.key <= '9') { e.preventDefault(); enter(+e.key); return; }
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { e.preventDefault(); enter(0); return; }
+  if (!sel) return;
+  const mv = { ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1] };
+  if (mv[e.key]) {
+    e.preventDefault();
+    sel = { r: Math.max(0, Math.min(8, sel.r + mv[e.key][0])), c: Math.max(0, Math.min(8, sel.c + mv[e.key][1])) };
+    draw();
+  }
+});
+
+init();
+</script>
+</body>
+</html>
