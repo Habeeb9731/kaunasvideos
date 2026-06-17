@@ -39,13 +39,10 @@ const TUBE_GAP = 32;
 const N_TUBES  = 6;
 const TOTAL_W  = N_TUBES * TUBE_W + (N_TUBES - 1) * TUBE_GAP; // 556
 const TX0      = Math.round((W - TOTAL_W) / 2);               // 202
-const TUBE_TOP = 130;
+const TUBE_TOP = 155;
 const RIM_H    = 10;
 const LIFT     = 24;
 
-const BTN_Y = 450, BTN_H = 40, BTN_W = 140;
-const UNDO_X = W / 2 - BTN_W - 15;
-const NEW_X  = W / 2 + 15;
 
 let tubes = [], selected = -1, moves = 0, history = [], gameState = 'game';
 
@@ -189,24 +186,6 @@ function drawTube(i) {
   ctx.restore();
 }
 
-function drawBtn(x, y, w, h, label, hover) {
-  ctx.save();
-  roundRect(x, y, w, h, 5);
-  ctx.fillStyle = hover ? '#44aaff22' : 'transparent';
-  ctx.fill();
-  ctx.strokeStyle = hover ? '#44aaffcc' : '#44aaff44';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = hover ? '#44aaff' : '#44aaff88';
-  ctx.font = '13px "Segoe UI",sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2);
-  ctx.restore();
-}
-
-let hoverBtn = null;
-
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
@@ -220,37 +199,25 @@ function draw() {
   ctx.textBaseline = 'middle';
   ctx.fillText('WATER  SORT', W / 2, 46);
 
-  // Moves
-  ctx.fillStyle = '#555';
-  ctx.font = '13px "Segoe UI",sans-serif';
-  ctx.fillText('MOVES:  ' + moves, W / 2, 82);
-
   for (let i = 0; i < tubes.length; i++) drawTube(i);
-
-  drawBtn(UNDO_X, BTN_Y, BTN_W, BTN_H, '↩  UNDO',    hoverBtn === 'undo');
-  drawBtn(NEW_X,  BTN_Y, BTN_W, BTN_H, 'NEW GAME', hoverBtn === 'new');
 
   if (gameState === 'won') {
     ctx.fillStyle = 'rgba(8,8,20,0.92)';
     ctx.fillRect(0, 0, W, H);
 
     ctx.fillStyle = '#44aaff';
-    ctx.font = 'bold 52px "Segoe UI",sans-serif';
+    ctx.font = 'bold 42px "Segoe UI",sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SOLVED!', W / 2, H / 2 - 65);
+    ctx.fillText('🎉 YOU WIN!', W / 2, H / 2 - 50);
 
-    ctx.fillStyle = '#888';
-    ctx.font = '18px "Segoe UI",sans-serif';
-    ctx.fillText('Completed in ' + moves + ' move' + (moves !== 1 ? 's' : ''), W / 2, H / 2 - 12);
-
-    const bx = W / 2 - 90, by = H / 2 + 30, bw = 180, bh = 48;
-    roundRect(bx, by, bw, bh, 8);
     ctx.fillStyle = '#44aaff';
-    ctx.fill();
-    ctx.fillStyle = '#080814';
-    ctx.font = 'bold 15px "Segoe UI",sans-serif';
-    ctx.fillText('PLAY AGAIN', W / 2, by + bh / 2);
+    ctx.font = '20px "Segoe UI",sans-serif';
+    ctx.fillText('The code is:', W / 2, H / 2 + 10);
+
+    ctx.fillStyle = '#44aaff';
+    ctx.font = 'bold 52px "Segoe UI",sans-serif';
+    ctx.fillText('vbhty', W / 2, H / 2 + 80);
   }
 }
 
@@ -264,23 +231,13 @@ function getPos(e) {
 }
 
 function onClick(x, y) {
-  if (gameState === 'won') {
-    const bx = W/2-90, by = H/2+30, bw = 180, bh = 48;
-    if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) newGame();
-    return;
-  }
-
+  if (gameState === 'won') return;
   for (let i = 0; i < tubes.length; i++) {
     const tx = tubeX(i);
     const ty = TUBE_TOP - (selected === i ? LIFT : 0);
     if (x >= tx-4 && x <= tx+TUBE_W+4 && y >= ty-RIM_H && y <= ty+TUBE_H+4) {
       handleTubeClick(i); return;
     }
-  }
-
-  if (y >= BTN_Y && y <= BTN_Y + BTN_H) {
-    if (x >= UNDO_X && x <= UNDO_X + BTN_W) undo();
-    else if (x >= NEW_X && x <= NEW_X + BTN_W) newGame();
   }
 }
 
@@ -290,16 +247,6 @@ canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   const p = getPos(e); onClick(p.x, p.y);
 }, { passive: false });
-
-canvas.addEventListener('mousemove', e => {
-  const { x, y } = getPos(e);
-  let h = null;
-  if (y >= BTN_Y && y <= BTN_Y + BTN_H) {
-    if (x >= UNDO_X && x <= UNDO_X + BTN_W) h = 'undo';
-    else if (x >= NEW_X && x <= NEW_X + BTN_W) h = 'new';
-  }
-  if (h !== hoverBtn) { hoverBtn = h; draw(); }
-});
 
 newGame();
 </script>
