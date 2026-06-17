@@ -206,7 +206,7 @@ function gameLoop() {
   if (fc % 10 === 0) {
     score++;
     if (score > best) best = score;
-    if (score >= 10) return win();
+    if (score >= 600) return win();
   }
 
   drawHUD(score, best);
@@ -237,7 +237,7 @@ function gameOver() {
   ctx.fillText('GAME OVER', W / 2, 260);
   ctx.font = '17px monospace';
   ctx.fillStyle = '#888';
-  ctx.fillText('reach score 10 to win  •  SPACE or tap to retry', W / 2, 310);
+  ctx.fillText('reach score 600 to win  •  SPACE or tap to retry', W / 2, 310);
   gState = 'over';
 }
 
@@ -255,7 +255,7 @@ function win() {
   ctx.font = '22px monospace';
   ctx.fillText('The code is:', W / 2, H / 2 - 5);
   ctx.font = 'bold 54px monospace';
-  ctx.fillText('XXXXX', W / 2, H / 2 + 70);
+  ctx.fillText('ygjdi', W / 2, H / 2 + 70);
   gState = 'won';
 }
 
@@ -272,7 +272,7 @@ function drawStart() {
   ctx.fillText('SPACE  or  TAP  to  start', W / 2, H / 2 - 20);
   ctx.fillStyle = '#999';
   ctx.font = '15px monospace';
-  ctx.fillText('double jump allowed  •  reach score 10 to win', W / 2, H / 2 + 12);
+  ctx.fillText('double jump allowed  •  reach score 600 to win', W / 2, H / 2 + 12);
 }
 
 function startGame() {
