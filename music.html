@@ -16,9 +16,24 @@
       width: min(100vw, calc(100vh * 16 / 9));
       height: min(100vh, calc(100vw * 9 / 16));
       display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3%;
+    }
+    #hint {
+      color: rgba(255,255,255,0.55);
+      font-family: 'Segoe UI', sans-serif;
+      font-size: clamp(11px, 1.8vh, 20px);
+      letter-spacing: 0.08em;
+      pointer-events: none;
+    }
+    #players-row {
+      display: flex;
       align-items: center;
       justify-content: center;
       gap: 6%;
+      width: 100%;
     }
 
     .player {
@@ -107,6 +122,8 @@
 </head>
 <body>
 <div id="wrapper">
+  <p id="hint">Click on the records to play music</p>
+  <div id="players-row">
 
   <div class="player" data-n="1">
     <div class="disc-wrap">
@@ -135,6 +152,7 @@
     </div>
   </div>
 
+  </div>
 </div>
 <script>
 const audios = [
