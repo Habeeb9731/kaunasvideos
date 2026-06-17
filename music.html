@@ -16,24 +16,9 @@
       width: min(100vw, calc(100vh * 16 / 9));
       height: min(100vh, calc(100vw * 9 / 16));
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 3%;
-    }
-    #hint {
-      color: rgba(0,0,0,0.5);
-      font-family: 'Segoe UI', sans-serif;
-      font-size: clamp(11px, 1.8vh, 20px);
-      letter-spacing: 0.08em;
-      pointer-events: none;
-    }
-    #players-row {
-      display: flex;
       align-items: center;
       justify-content: center;
       gap: 6%;
-      width: 100%;
     }
 
     .player {
@@ -47,7 +32,6 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* Disc */
     .disc-wrap {
       position: relative;
       width: 100%;
@@ -93,6 +77,33 @@
       to { transform: rotate(360deg); }
     }
 
+    /* Play / pause button overlay */
+    .play-btn {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 30%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.42);
+      border: 2px solid rgba(255,255,255,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: background 0.3s;
+    }
+    .player.playing .play-btn {
+      background: rgba(0,0,0,0.35);
+    }
+    .play-btn svg {
+      width: 38%;
+      height: 38%;
+    }
+    .icon-pause { display: none; }
+    .player.playing .icon-play  { display: none; }
+    .player.playing .icon-pause { display: block; }
+
     /* Sound bars */
     .bars {
       display: flex;
@@ -106,7 +117,6 @@
       border-radius: 3px;
       background: #ff9900;
       height: 3px;
-      transition: height 0.3s;
     }
     .player.playing .bars span { animation: bar 0.5s ease-in-out infinite alternate; }
     .player.playing .bars span:nth-child(1) { animation-duration: 0.38s; animation-delay: 0.00s; }
@@ -122,48 +132,45 @@
 </head>
 <body>
 <div id="wrapper">
-  <p id="hint">Click on the records to play music</p>
-  <div id="players-row">
 
   <div class="player" data-n="1">
     <div class="disc-wrap">
       <img src="recordplayer.png" alt="Player 1">
+      <div class="play-btn">
+        <svg class="icon-play"  viewBox="0 0 24 24"><polygon points="7,3 21,12 7,21" fill="white"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24"><rect x="4"  y="3" width="5" height="18" fill="white"/><rect x="15" y="3" width="5" height="18" fill="white"/></svg>
+      </div>
     </div>
-    <div class="bars">
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
+    <div class="bars"><span></span><span></span><span></span><span></span><span></span></div>
   </div>
 
   <div class="player" data-n="2">
     <div class="disc-wrap">
       <img src="recordplayer.png" alt="Player 2">
+      <div class="play-btn">
+        <svg class="icon-play"  viewBox="0 0 24 24"><polygon points="7,3 21,12 7,21" fill="white"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24"><rect x="4"  y="3" width="5" height="18" fill="white"/><rect x="15" y="3" width="5" height="18" fill="white"/></svg>
+      </div>
     </div>
-    <div class="bars">
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
+    <div class="bars"><span></span><span></span><span></span><span></span><span></span></div>
   </div>
 
   <div class="player" data-n="3">
     <div class="disc-wrap">
       <img src="recordplayer.png" alt="Player 3">
+      <div class="play-btn">
+        <svg class="icon-play"  viewBox="0 0 24 24"><polygon points="7,3 21,12 7,21" fill="white"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24"><rect x="4"  y="3" width="5" height="18" fill="white"/><rect x="15" y="3" width="5" height="18" fill="white"/></svg>
+      </div>
     </div>
-    <div class="bars">
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
+    <div class="bars"><span></span><span></span><span></span><span></span><span></span></div>
   </div>
 
-  </div>
 </div>
 <script>
-const audios = [
-  new Audio('1.mp3'),
-  new Audio('2.mp3'),
-  new Audio('3.mp3'),
-];
-
+const audios = [new Audio('1.mp3'), new Audio('2.mp3'), new Audio('3.mp3')];
 const players = Array.from(document.querySelectorAll('.player'));
-let activeIdx = -1;
-let stopTimer = null;
+let activeIdx = -1, stopTimer = null;
 
 function stopAll() {
   clearTimeout(stopTimer);
