@@ -8,7 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%; height: 100%;
-      background: #080814;
+      background: transparent;
       display: flex; align-items: center; justify-content: center;
       overflow: hidden;
     }
@@ -16,7 +16,7 @@
       width: min(100vw, calc(100vh * 16 / 9));
       height: min(100vh, calc(100vw * 9 / 16));
     }
-    canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+    canvas { width: 100%; height: 100%; display: block; cursor: pointer; background: transparent; }
   </style>
 </head>
 <body>
@@ -37,14 +37,13 @@ const SEG_H    = 66;
 const TUBE_H   = SEG_H * CAP;   // 264
 const TUBE_GAP = 32;
 const N_TUBES  = 6;
-const TOTAL_W  = N_TUBES * TUBE_W + (N_TUBES - 1) * TUBE_GAP; // 556
-const TX0      = Math.round((W - TOTAL_W) / 2);               // 202
+const TOTAL_W  = N_TUBES * TUBE_W + (N_TUBES - 1) * TUBE_GAP;
+const TX0      = Math.round((W - TOTAL_W) / 2);
 const TUBE_TOP = 155;
 const RIM_H    = 10;
 const LIFT     = 24;
 
-
-let tubes = [], selected = -1, moves = 0, history = [], gameState = 'game';
+let tubes = [], selected = -1, history = [], gameState = 'game';
 
 function tubeX(i) { return TX0 + i * (TUBE_W + TUBE_GAP); }
 
@@ -62,7 +61,7 @@ function newGame() {
   tubes = [];
   for (let i = 0; i < 4; i++) tubes.push(segs.slice(i * CAP, (i + 1) * CAP));
   tubes.push([], []);
-  selected = -1; moves = 0; history = []; gameState = 'game';
+  selected = -1; history = []; gameState = 'game';
   draw();
 }
 
@@ -84,12 +83,6 @@ function pour(f, t) {
   history.push(tubes.map(x => [...x]));
   const amt = Math.min(CAP - tubes[t].length, topRun(tubes[f]));
   for (let i = 0; i < amt; i++) tubes[t].push(tubes[f].pop());
-  moves++;
-}
-
-function undo() {
-  if (!history.length) return;
-  tubes = history.pop(); moves = Math.max(0, moves - 1); selected = -1; draw();
 }
 
 function isWon() {
@@ -115,16 +108,6 @@ function handleTubeClick(i) {
 
 // ── Drawing ──────────────────────────────────────────────────────────────────
 
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y,     x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x,     y + h, r);
-  ctx.arcTo(x,     y + h, x,     y,     r);
-  ctx.arcTo(x,     y,     x + w, y,     r);
-  ctx.closePath();
-}
-
 function tubePath(x, y) {
   const r = TUBE_W / 2;
   ctx.beginPath();
@@ -145,35 +128,75 @@ function drawTube(i) {
   const isSel = selected === i;
   const isDone = tube.length === CAP && tube.every(c => c === tube[0]);
 
+  // ── Liquid + glass interior (clipped) ──
   ctx.save();
   tubePath(tx, ty);
   ctx.clip();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  // Glass base tint
+  ctx.fillStyle = 'rgba(180,215,255,0.10)';
   ctx.fillRect(tx, ty, TUBE_W, TUBE_H);
 
+  // Color segments with 3D cylindrical shading
   for (let s = 0; s < tube.length; s++) {
     const segY = ty + TUBE_H - (s + 1) * SEG_H;
+
+    // Base color
     ctx.fillStyle = COLORS[tube[s]];
     ctx.fillRect(tx, segY, TUBE_W, SEG_H);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(tx, segY, TUBE_W, 3);
+
+    // Cylindrical gradient: shadow on edges, highlight in center
+    const cg = ctx.createLinearGradient(tx, 0, tx + TUBE_W, 0);
+    cg.addColorStop(0,    'rgba(0,0,0,0.32)');
+    cg.addColorStop(0.14, 'rgba(0,0,0,0.08)');
+    cg.addColorStop(0.36, 'rgba(255,255,255,0.16)');
+    cg.addColorStop(0.50, 'rgba(255,255,255,0.22)');
+    cg.addColorStop(0.66, 'rgba(255,255,255,0.06)');
+    cg.addColorStop(0.86, 'rgba(0,0,0,0.10)');
+    cg.addColorStop(1,    'rgba(0,0,0,0.36)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(tx, segY, TUBE_W, SEG_H);
+
+    // Meniscus top highlight
+    const mh = ctx.createLinearGradient(0, segY, 0, segY + 7);
+    mh.addColorStop(0, 'rgba(255,255,255,0.32)');
+    mh.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = mh;
+    ctx.fillRect(tx + 3, segY, TUBE_W - 6, 7);
   }
+
+  // Glass left highlight stripe
+  const lh = ctx.createLinearGradient(tx, 0, tx + TUBE_W * 0.42, 0);
+  lh.addColorStop(0,    'rgba(255,255,255,0.30)');
+  lh.addColorStop(0.18, 'rgba(255,255,255,0.16)');
+  lh.addColorStop(0.42, 'rgba(255,255,255,0.03)');
+  lh.addColorStop(1,    'rgba(255,255,255,0)');
+  ctx.fillStyle = lh;
+  ctx.fillRect(tx, ty, TUBE_W, TUBE_H);
+
+  // Glass right shadow
+  const rs = ctx.createLinearGradient(tx + TUBE_W * 0.58, 0, tx + TUBE_W, 0);
+  rs.addColorStop(0, 'rgba(0,0,0,0)');
+  rs.addColorStop(1, 'rgba(0,0,0,0.26)');
+  ctx.fillStyle = rs;
+  ctx.fillRect(tx, ty, TUBE_W, TUBE_H);
+
   ctx.restore();
 
+  // ── Tube border ──
   ctx.save();
-  if (isDone) { ctx.shadowBlur = 18; ctx.shadowColor = COLORS[tube[0]]; }
+  if (isDone) { ctx.shadowBlur = 20; ctx.shadowColor = COLORS[tube[0]]; }
   ctx.strokeStyle = isDone ? COLORS[tube[0]] + 'cc'
-                  : isSel  ? 'rgba(255,255,255,0.85)'
-                  :          'rgba(255,255,255,0.25)';
+                  : isSel  ? 'rgba(255,255,255,0.90)'
+                  :          'rgba(255,255,255,0.45)';
   ctx.lineWidth = 2;
   tubePath(tx, ty);
   ctx.stroke();
   ctx.restore();
 
-  // Rim
+  // ── Rim ──
   ctx.save();
-  ctx.strokeStyle = isSel ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)';
+  ctx.strokeStyle = isSel ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.45)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(tx - 4, ty);
@@ -189,33 +212,32 @@ function drawTube(i) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  ctx.fillStyle = '#080814';
-  ctx.fillRect(0, 0, W, H);
-
-  // Title
+  // Title with shadow so it reads on both light and dark backgrounds
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,80,200,0.35)';
+  ctx.shadowBlur = 12;
   ctx.fillStyle = '#44aaff';
   ctx.font = 'bold 26px "Segoe UI",sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('WATER  SORT', W / 2, 46);
+  ctx.restore();
 
   for (let i = 0; i < tubes.length; i++) drawTube(i);
 
   if (gameState === 'won') {
-    ctx.fillStyle = 'rgba(8,8,20,0.92)';
+    ctx.fillStyle = 'rgba(255,255,255,0.90)';
     ctx.fillRect(0, 0, W, H);
 
-    ctx.fillStyle = '#44aaff';
+    ctx.fillStyle = '#1a55cc';
     ctx.font = 'bold 42px "Segoe UI",sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('🎉 YOU WIN!', W / 2, H / 2 - 50);
 
-    ctx.fillStyle = '#44aaff';
     ctx.font = '20px "Segoe UI",sans-serif';
     ctx.fillText('The code is:', W / 2, H / 2 + 10);
 
-    ctx.fillStyle = '#44aaff';
     ctx.font = 'bold 52px "Segoe UI",sans-serif';
     ctx.fillText('vbhty', W / 2, H / 2 + 80);
   }
@@ -242,7 +264,6 @@ function onClick(x, y) {
 }
 
 canvas.addEventListener('click', e => { const p = getPos(e); onClick(p.x, p.y); });
-
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   const p = getPos(e); onClick(p.x, p.y);
