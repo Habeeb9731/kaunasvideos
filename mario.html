@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mario Run</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    #wrapper { width:min(100vw,calc(100vh*16/9)); height:min(100vh,calc(100vw*9/16)); }
+    canvas { width:100%; height:100%; display:block; image-rendering:pixelated; image-rendering:crisp-edges; background:transparent; }
+  </style>
+</head>
+<body>
+<div id="wrapper"><canvas id="c" width="960" height="540"></canvas></div>
+<script>
+const W=960, H=540, P=4;
+const GROUND=400;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+
+const CM={' ':null,'R':'#e52521','S':'#fbd4a4','B':'#4169e1','N':'#7b3f00','K':'#111111'};
+
+const SP_IDLE=[
+  '  RRR   ',
+  ' RRRRR  ',
+  ' NNSSN  ',
+  ' NSSSNN ',
+  ' KSSSSK ',
+  '  SSSS  ',
+  ' RBBR   ',
+  'RRRBBRRR',
+  'RRRBBRRR',
+  '  BB BB ',
+  ' NNN NN ',
+  ' NNN NN ',
+];
+const SP_RUN1=[
+  '  RRR   ',
+  ' RRRRR  ',
+  ' NNSSN  ',
+  ' NSSSNN ',
+  ' KSSSSK ',
+  '  SSSS  ',
+  '  RBB   ',
+  ' RRRBB  ',
+  'RRRBB   ',
+  '  BB    ',
+  ' NN     ',
+  '  NN    ',
+];
+const SP_RUN2=[
+  '  RRR   ',
+  ' RRRRR  ',
+  ' NNSSN  ',
+  ' NSSSNN ',
+  ' KSSSSK ',
+  '  SSSS  ',
+  '   BBR  ',
+  '  BBRRR ',
+  '   BBRRR',
+  '    BB  ',
+  '     NN ',
+  '    NN  ',
+];
+
+function blit(sp, ox, oy){
+  sp.forEach((row,r)=>{
+    for(let c=0;c<row.length;c++){
+      const col=CM[row[c]];
+      if(col){ctx.fillStyle=col; ctx.fillRect(Math.round(ox+c*P),Math.round(oy+r*P),P,P);}
+    }
+  });
+}
+
+const MW=8*P, MH=12*P;
+
+function drawPipe(x, h){
+  const bw=6*P, cw=8*P, ch=3*P;
+  ctx.fillStyle='#228b22';
+  ctx.fillRect(x, GROUND-h, bw, h);
+  ctx.fillStyle='#006400';
+  ctx.fillRect(x, GROUND-h, P, h);
+  ctx.fillRect(x+bw-P, GROUND-h, P, h);
+  ctx.fillStyle='#228b22';
+  ctx.fillRect(x-P, GROUND-h-ch, cw, ch);
+  ctx.fillStyle='#006400';
+  ctx.fillRect(x-P, GROUND-h-ch, P, ch);
+  ctx.fillRect(x-P+cw-P, GROUND-h-ch, P, ch);
+}
+
+function drawGround(off){
+  ctx.fillStyle='#5aad31';
+  ctx.fillRect(0,GROUND,W,2*P);
+  ctx.fillStyle='#8b6914';
+  ctx.fillRect(0,GROUND+2*P,W,H-(GROUND+2*P));
+  ctx.fillStyle='#7a5c12';
+  const bw=16*P, bh=4*P;
+  for(let row=0;row<3;row++){
+    const shift=row%2===0?0:bw/2;
+    const xoff=-(Math.floor(off)%bw);
+    for(let bx=xoff-bw+shift; bx<W; bx+=bw){
+      ctx.fillRect(Math.round(bx), GROUND+2*P+row*bh, bw-2, bh-2);
+    }
+  }
+}
+
+const CLOUDS=Array.from({length:5},(_,i)=>({ox:i*220, y:50+Math.floor(Math.random()*60)}));
+function drawClouds(off){
+  ctx.fillStyle='#fff';
+  CLOUDS.forEach(cl=>{
+    const x=((cl.ox-off*0.3)%(W+200)+W+200)%(W+200)-60;
+    ctx.fillRect(Math.round(x+2*P),cl.y,6*P,2*P);
+    ctx.fillRect(Math.round(x+P),cl.y+2*P,8*P,2*P);
+    ctx.fillRect(Math.round(x),cl.y+4*P,10*P,2*P);
+    ctx.fillRect(Math.round(x+P),cl.y+6*P,8*P,2*P);
+  });
+}
+
+const WIN_SCORE=80;
+function drawHUD(score){
+  ctx.font='bold 18px monospace';
+  ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillStyle='#000'; ctx.fillText('SCORE: '+score+' / '+WIN_SCORE, 21,15);
+  ctx.fillStyle='#fff'; ctx.fillText('SCORE: '+score+' / '+WIN_SCORE, 20,14);
+}
+
+let mario, pipes, score, speed, fc, running, gState, raf;
+
+function init(){
+  mario={x:100,y:GROUND,vy:0,jumps:0};
+  pipes=[]; score=0; speed=5; fc=0; gState='play';
+}
+
+function jump(){
+  if(gState!=='play'||mario.jumps>=1) return;
+  mario.vy=-16; mario.jumps++;
+}
+
+function spawnPipe(){
+  const h=(15+Math.floor(Math.random()*11))*P;
+  pipes.push({x:W+20,h});
+}
+
+function scene(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#5c94fc';
+  ctx.fillRect(0,0,W,GROUND);
+  drawClouds(fc*speed);
+  drawGround(fc*speed);
+}
+
+function gameLoop(){
+  if(!running) return;
+  fc++;
+  scene();
+
+  mario.vy+=0.9;
+  mario.y=Math.min(mario.y+mario.vy,GROUND);
+  if(mario.y===GROUND){mario.vy=0;mario.jumps=0;}
+  speed+=0.002;
+
+  if(fc===90||(fc>90&&(fc-90)%Math.max(55,90-score*2)===0)) spawnPipe();
+
+  for(let i=pipes.length-1;i>=0;i--){
+    const p=pipes[i];
+    p.x-=speed;
+    if(p.x+8*P<0){pipes.splice(i,1); continue;}
+    drawPipe(p.x,p.h);
+    const mx2=mario.x+P, mw2=MW-2*P;
+    const px2=p.x-P, pw2=8*P;
+    const pTop=GROUND-p.h-3*P;
+    if(mx2+mw2>px2 && mx2<px2+pw2 && mario.y>pTop) return gameOver();
+  }
+
+  const lf=mario.y<GROUND?0:(Math.floor(fc/6)%2+1);
+  blit(lf===1?SP_RUN1:lf===2?SP_RUN2:SP_IDLE, mario.x, mario.y-MH);
+
+  if(fc%8===0){ score++; if(score>=WIN_SCORE) return win(); }
+  drawHUD(score);
+  raf=requestAnimationFrame(gameLoop);
+}
+
+function freeze(){
+  scene();
+  pipes.forEach(p=>drawPipe(p.x,p.h));
+  blit(SP_IDLE,mario.x,mario.y-MH);
+  drawHUD(score);
+}
+
+function gameOver(){
+  running=false; freeze();
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(0,150,W,240);
+  ctx.fillStyle='#fff';
+  ctx.font='bold 48px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('GAME OVER',W/2,255);
+  ctx.font='18px monospace';
+  ctx.fillStyle='#ddd';
+  ctx.fillText('SPACE or tap to retry',W/2,315);
+  gState='over';
+}
+
+function win(){
+  running=false; freeze();
+  ctx.fillStyle='rgba(0,0,0,0.72)';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#f4c430';
+  ctx.font='bold 56px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('YOU WIN!',W/2,H/2-80);
+  ctx.fillStyle='#fff';
+  ctx.font='26px monospace';
+  ctx.fillText('Your code is:',W/2,H/2+5);
+  ctx.fillStyle='#f4c430';
+  ctx.font='bold 72px monospace';
+  ctx.fillText('21',W/2,H/2+90);
+  gState='won';
+}
+
+function drawStart(){
+  scene();
+  blit(SP_IDLE,100,GROUND-MH);
+  ctx.font='bold 34px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#000'; ctx.fillText('MARIO  RUN',W/2+2,H/2-42);
+  ctx.fillStyle='#f4c430'; ctx.fillText('MARIO  RUN',W/2,H/2-44);
+  ctx.fillStyle='#fff';
+  ctx.font='20px monospace';
+  ctx.fillText('CLICK or TAP to start',W/2,H/2+10);
+  ctx.fillStyle='#ccc';
+  ctx.font='15px monospace';
+  ctx.fillText('jump over pipes · reach '+WIN_SCORE+' to win',W/2,H/2+44);
+}
+
+function startGame(){
+  cancelAnimationFrame(raf);
+  init(); running=true;
+  raf=requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(!running&&gState!=='won') startGame();
+    else jump();
+  }
+});
+function handleTap(){
+  if(!running&&gState!=='won') startGame();
+  else jump();
+}
+canvas.addEventListener('click',handleTap);
+canvas.addEventListener('touchstart',e=>{e.preventDefault();handleTap();},{passive:false});
+
+gState='start'; fc=0; speed=0;
+drawStart();
+</script>
+</body>
+</html>
