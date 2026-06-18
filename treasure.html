@@ -934,7 +934,7 @@ function draw() {
     
     ctx.fillStyle = '#888';
     ctx.font = '16px monospace';
-    ctx.fillText('Press SPACE or TAP screen to play again', W/2, H/2 + 180);
+    ctx.fillText('Press SPACE, ENTER or TAP screen to play again', W/2, H/2 + 180);
   }
 }
 
@@ -1026,7 +1026,7 @@ function tick() {
 
 document.addEventListener('keydown', e => {
   if (gameState === 'won') {
-    if (e.code === 'Space') {
+    if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault();
       init();
     }
