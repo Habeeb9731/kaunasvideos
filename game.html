@@ -171,7 +171,7 @@ function gameOver() {
   playBtn.textContent = 'TRY AGAIN';
   playBtn.style.background = '#ff4466';
   playBtn.style.fontSize = ''; playBtn.style.letterSpacing = '';
-  playBtn.style.cursor = 'pointer'; playBtn.onclick = startGame;
+  playBtn.style.cursor = 'pointer';
   overlay.style.display = 'flex';
   ctx.save(); ctx.fillStyle = '#ff446622'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
 }
@@ -186,17 +186,17 @@ function win() {
   playBtn.style.background = '#00ffaa';
   playBtn.style.fontSize = '2.5vw';
   playBtn.style.letterSpacing = '8px';
-  playBtn.style.cursor = 'default'; playBtn.onclick = null;
+  playBtn.style.cursor = 'default';
   overlay.style.display = 'flex';
   ctx.save(); ctx.fillStyle = '#00ffaa11'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
 }
 
 function startGame() {
+  clearInterval(loop);
   overlay.style.display = 'none';
   olTitle.style.color = '#00ffaa'; olSub.style.color = '#aaa';
   playBtn.style.background = '#00ffaa'; playBtn.style.fontSize = '';
   playBtn.style.letterSpacing = ''; playBtn.style.cursor = 'pointer';
-  playBtn.onclick = startGame;
   init(); draw(); running = true;
   loop = setInterval(step, 120);
 }
