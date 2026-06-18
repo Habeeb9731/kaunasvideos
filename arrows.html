@@ -23,60 +23,72 @@ const DX=[0,1,0,-1], DY=[-1,0,1,0];
 const ARR=['↑','→','↓','←'];
 
 /*
-  Mechanics: tap an arrow → it slides in its direction until blocked or flies off edge.
-  Fly off = removed. Clear all arrows = level clear.
-  Restart level costs a life. 3 lives total.
+  One hard level. Tap arrow → slides until blocked or flies off edge.
+  Flies off = removed (good). Bumps into another arrow = lose a heart.
+  Lose all 3 hearts = game over. Clear all arrows = win.
+
+  Solution hint: find the arrows that can fly off freely first,
+  then unlock the rest in the right order.
 */
 
-// Each level: arrows that block each other in specific order
-const LEVELS = [
-  // L1: simple 3-arrow intro — remove D, then R, then U (or any independent first)
-  { cols:5, rows:5, arrows:[{c:2,r:1,d:U},{c:1,r:2,d:R},{c:2,r:2,d:D}] },
-  // L2: two chains — [1,4,R] or [1,1,U] first, then unblock the rest
-  { cols:5, rows:5, arrows:[{c:1,r:1,d:U},{c:1,r:2,d:D},{c:2,r:2,d:L},{c:2,r:3,d:U},{c:1,r:4,d:R}] },
-  // L3: vertical chain + side arrows — must clear top-down
-  { cols:5, rows:5, arrows:[{c:2,r:1,d:U},{c:2,r:2,d:U},{c:2,r:3,d:U},{c:1,r:3,d:R},{c:3,r:3,d:R}] },
-  // L4: two independent chain + a blocker
-  { cols:6, rows:6, arrows:[{c:2,r:1,d:U},{c:2,r:2,d:U},{c:2,r:3,d:U},{c:1,r:3,d:R},{c:3,r:3,d:L},{c:3,r:4,d:D}] },
-  // L5: two chains interleaved
-  { cols:6, rows:6, arrows:[{c:2,r:1,d:U},{c:1,r:2,d:D},{c:2,r:2,d:U},{c:1,r:3,d:D},{c:2,r:3,d:U},{c:3,r:3,d:L}] },
-];
+const LEVEL = { cols:6, rows:6, arrows:[
+  {c:3,r:0,d:R},  // → flies off right (always safe)
+  {c:1,r:1,d:R},  // → blocked by (3,1) until that clears
+  {c:3,r:1,d:D},  // ↓ blocked by (3,2) until that clears
+  {c:1,r:2,d:R},  // → blocked by (3,2) until that clears
+  {c:3,r:2,d:D},  // ↓ blocked by (3,4) until that clears
+  {c:0,r:3,d:R},  // → blocked by (1,3) until that clears
+  {c:1,r:3,d:D},  // ↓ flies off bottom (always safe)
+  {c:3,r:4,d:R},  // → flies off right (always safe)
+]};
 
-let lvlIdx=0, lives=3, gState='play';
+let lives=3, gState='play';
 let arrows=[], busy=false;
 const ANIM_T=14;
 
 function cs(){
-  const lv=LEVELS[lvlIdx];
-  return Math.min(Math.floor((W-220)/lv.cols), Math.floor((H-110)/lv.rows), 96);
+  return Math.min(Math.floor((W-220)/LEVEL.cols), Math.floor((H-110)/LEVEL.rows), 96);
 }
 function go(){
-  const lv=LEVELS[lvlIdx], s=cs();
-  return { ox:Math.floor((W-lv.cols*s)/2), oy:Math.floor((H-lv.rows*s)/2)+14 };
+  const s=cs();
+  return { ox:Math.floor((W-LEVEL.cols*s)/2), oy:Math.floor((H-LEVEL.rows*s)/2)+14 };
 }
 
 function initLevel(){
-  arrows=LEVELS[lvlIdx].arrows.map(a=>({...a, anim:null, flash:0}));
+  arrows=LEVEL.arrows.map(a=>({...a, anim:null, flash:0}));
   busy=false; gState='play';
+}
+
+function loseHeart(){
+  lives--;
+  if(lives<=0){ lives=0; gState='gameover'; }
 }
 
 function trySlide(idx){
   if(busy) return;
   const a=arrows[idx];
-  const lv=LEVELS[lvlIdx];
   const s=cs(); const{ox,oy}=go();
 
-  // Walk in direction until blocked or off-edge
   let tc=a.c, tr=a.r;
   let fallsOff=false;
   for(;;){
     const nc=tc+DX[a.d], nr=tr+DY[a.d];
-    if(nc<0||nc>=lv.cols||nr<0||nr>=lv.rows){ fallsOff=true; tc=nc; tr=nr; break; }
+    if(nc<0||nc>=LEVEL.cols||nr<0||nr>=LEVEL.rows){ fallsOff=true; tc=nc; tr=nr; break; }
     if(arrows.some((b,bi)=>bi!==idx&&b.c===nc&&b.r===nr)) break;
     tc=nc; tr=nr;
   }
 
-  if(tc===a.c&&tr===a.r){ a.flash=14; return; } // stuck — flash
+  if(tc===a.c&&tr===a.r){
+    // immediately blocked — bump!
+    a.flash=18;
+    loseHeart();
+    return;
+  }
+
+  if(!fallsOff){
+    // moved but stopped by another arrow — bump!
+    loseHeart();
+  }
 
   busy=true;
   const extra = fallsOff ? s*1.2 : 0;
@@ -104,32 +116,27 @@ function tick(){
   for(let i=done.length-1;i>=0;i--) arrows.splice(done[i],1);
   busy=arrows.some(a=>a.anim);
 
-  if(!busy&&arrows.length===0){
-    lvlIdx++;
-    if(lvlIdx>=LEVELS.length){ gState='won'; }
-    else{ gState='levelup'; setTimeout(initLevel,1700); }
-  }
+  if(!busy&&arrows.length===0) gState='won';
 }
 
 function easeInOut(t){ return t<0.5?2*t*t:-1+(4-2*t)*t; }
 
 function draw(){
   ctx.clearRect(0,0,W,H);
-  if(!LEVELS[lvlIdx]) return;
-  const lv=LEVELS[lvlIdx], s=cs(); const{ox,oy}=go();
+  const s=cs(); const{ox,oy}=go();
 
-  // Grid — white cells, black lines
-  for(let r=0;r<lv.rows;r++) for(let c=0;c<lv.cols;c++){
-    const x=ox+c*s,y=oy+r*s;
+  // Grid
+  for(let r=0;r<LEVEL.rows;r++) for(let c=0;c<LEVEL.cols;c++){
+    const x=ox+c*s, y=oy+r*s;
     ctx.fillStyle='#fff'; ctx.fillRect(x+1,y+1,s-2,s-2);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
     ctx.strokeRect(x+1,y+1,s-2,s-2);
   }
 
-  // Arrows (clipped to grid + 1-cell margin)
+  // Arrows (clipped)
   ctx.save();
   ctx.beginPath();
-  ctx.rect(ox-s, oy-s, lv.cols*s+2*s, lv.rows*s+2*s);
+  ctx.rect(ox-s, oy-s, LEVEL.cols*s+2*s, LEVEL.rows*s+2*s);
   ctx.clip();
 
   arrows.forEach(a=>{
@@ -144,14 +151,11 @@ function draw(){
 
     const fl=a.flash>0;
     const rad=s*0.38;
-
     ctx.save();
-    // Circle: white fill, black border (grey fill when flashing)
-    ctx.fillStyle=fl?'#ccc':'#fff';
+    ctx.fillStyle=fl?'#ff9999':'#fff';
     ctx.beginPath(); ctx.arc(ax,ay,rad,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#000'; ctx.lineWidth=2.5; ctx.stroke();
-    // Arrow symbol
-    ctx.fillStyle='#000';
+    ctx.strokeStyle=fl?'#cc0000':'#000'; ctx.lineWidth=fl?3:2.5; ctx.stroke();
+    ctx.fillStyle=fl?'#cc0000':'#000';
     ctx.font=`bold ${Math.round(s*0.5)}px sans-serif`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(ARR[a.d],ax,ay+2);
@@ -159,46 +163,33 @@ function draw(){
   });
   ctx.restore();
 
-  // HUD — level left, hearts right
+  // HUD — title left, hearts right
   ctx.fillStyle='#000'; ctx.font='bold 18px monospace';
   ctx.textAlign='left'; ctx.textBaseline='top';
-  ctx.fillText('LEVEL '+(lvlIdx+1)+' / 5', 20, 12);
+  ctx.fillText('ARROW PUZZLE', 20, 12);
 
   ctx.font='26px sans-serif';
   for(let i=0;i<3;i++){
-    ctx.fillStyle=i<lives?'#000':'#ccc';
+    ctx.fillStyle=i<lives?'#cc0000':'#ccc';
     ctx.textAlign='center'; ctx.textBaseline='top';
     ctx.fillText('♥', W-90+i*34, 8);
-  }
-
-  // Restart button
-  if(gState==='play'){
-    const rbx=W-120, rby=H-46;
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.roundRect(rbx,rby,110,36,8); ctx.fill();
-    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
-    ctx.fillStyle='#000'; ctx.font='14px monospace';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('↺ RESTART (-♥)',rbx+55,rby+18);
   }
 
   // Hint
   if(gState==='play'){
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.font='15px monospace';
     ctx.textAlign='center'; ctx.textBaseline='bottom';
-    ctx.fillText('tap arrow → slides until blocked · flies off edge = cleared',W/2,H-10);
+    ctx.fillText('tap arrow to slide · flies off edge = cleared · bumps = ♥ lost',W/2,H-10);
   }
 
   // Overlays
-  if(['levelup','won','gameover'].includes(gState)){
+  if(gState==='gameover'||gState==='won'){
     ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.fillRect(0,0,W,H);
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    if(gState==='levelup'){
-      ctx.fillStyle='#000'; ctx.font='bold 54px monospace'; ctx.fillText('CLEARED! ✓',W/2,H/2);
-    } else if(gState==='gameover'){
-      ctx.fillStyle='#000'; ctx.font='bold 54px monospace'; ctx.fillText('GAME OVER',W/2,H/2-40);
-      ctx.fillStyle='#444'; ctx.font='22px monospace'; ctx.fillText('tap to restart',W/2,H/2+34);
-    } else if(gState==='won'){
+    if(gState==='gameover'){
+      ctx.fillStyle='#cc0000'; ctx.font='bold 54px monospace'; ctx.fillText('GAME OVER',W/2,H/2-40);
+      ctx.fillStyle='#444'; ctx.font='22px monospace'; ctx.fillText('tap to try again',W/2,H/2+34);
+    } else {
       ctx.fillStyle='#000'; ctx.font='bold 54px monospace'; ctx.fillText('YOU WIN!',W/2,H/2-70);
       ctx.fillStyle='#444'; ctx.font='24px monospace'; ctx.fillText('The code is:',W/2,H/2+10);
       ctx.fillStyle='#000'; ctx.font='bold 58px monospace'; ctx.fillText('mnwbq',W/2,H/2+80);
@@ -207,19 +198,12 @@ function draw(){
 }
 
 function handleInput(mx,my){
-  if(gState==='gameover'){ lives=3; lvlIdx=0; initLevel(); return; }
+  if(gState==='gameover'){ lives=3; initLevel(); return; }
   if(gState!=='play'||busy) return;
 
-  // Restart button
-  if(mx>=W-120&&mx<=W-10&&my>=H-46&&my<=H-10){
-    lives--;
-    if(lives<=0){ gState='gameover'; return; }
-    initLevel(); return;
-  }
-
-  const s=cs(); const{ox,oy}=go(); const lv=LEVELS[lvlIdx];
+  const s=cs(); const{ox,oy}=go();
   const c=Math.floor((mx-ox)/s), r=Math.floor((my-oy)/s);
-  if(c<0||c>=lv.cols||r<0||r>=lv.rows) return;
+  if(c<0||c>=LEVEL.cols||r<0||r>=LEVEL.rows) return;
   const idx=arrows.findIndex(a=>a.c===c&&a.r===r&&!a.anim);
   if(idx!==-1) trySlide(idx);
 }
