@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix the Wires</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:#080810; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    #wrapper { width:min(100vw,calc(100vh*16/9)); height:min(100vh,calc(100vw*9/16)); }
+    canvas { width:100%; height:100%; display:block; cursor:pointer; }
+  </style>
+</head>
+<body>
+<div id="wrapper"><canvas id="c" width="960" height="540"></canvas></div>
+<script>
+const W=960, H=540;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+
+const COLORS=['#ff2244','#2288ff','#ffee00','#22dd66','#dd44ff'];
+const N=5;
+const Y0=110, Y1=430;
+function slotY(i){ return Math.round(Y0+i*(Y1-Y0)/(N-1)); }
+
+// Panel geometry
+const LPX=50, LPW=90, RPX=820, RPW=90;
+const LCX=LPX+LPW;   // 140
+const RCX=RPX;        // 820
+
+let rSlots, sel, gState;
+
+function shuffle(a){
+  const b=[...a];
+  for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}
+  return b;
+}
+function init(){
+  let tries=0;
+  do{ rSlots=shuffle([0,1,2,3,4]); tries++; }
+  while(numCrossesFor(rSlots)<3 && tries<200);
+  sel=-1; gState='play';
+}
+
+function numCrossesFor(slots){
+  let n=0;
+  for(let a=0;a<N;a++) for(let b=a+1;b<N;b++){
+    const ra=slots.indexOf(a), rb=slots.indexOf(b);
+    if((a<b)!==(ra<rb)) n++;
+  }
+  return n;
+}
+function numCrosses(){ return numCrossesFor(rSlots); }
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+
+function drawBG(){
+  ctx.fillStyle='#080810'; ctx.fillRect(0,0,W,H);
+  // subtle dot grid in middle area
+  ctx.fillStyle='rgba(255,255,255,0.025)';
+  for(let x=LCX+30;x<RCX-20;x+=36)
+    for(let y=50;y<H-40;y+=36)
+      ctx.fillRect(x-1,y-1,2,2);
+}
+
+function drawWire(w, dimmed){
+  const ly=slotY(w);
+  const ry=slotY(rSlots.indexOf(w));
+  const col=COLORS[w];
+  const cpx1=LCX+210, cpx2=RCX-210;
+
+  ctx.save();
+  ctx.lineCap='round';
+
+  // Outer glow
+  ctx.globalAlpha=dimmed?0.12:0.28;
+  ctx.strokeStyle=col; ctx.lineWidth=18;
+  ctx.shadowBlur=22; ctx.shadowColor=col;
+  ctx.beginPath(); ctx.moveTo(LCX,ly); ctx.bezierCurveTo(cpx1,ly,cpx2,ry,RCX,ry); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Dark jacket
+  ctx.globalAlpha=dimmed?0.4:1;
+  ctx.strokeStyle='#000'; ctx.lineWidth=9;
+  ctx.beginPath(); ctx.moveTo(LCX,ly); ctx.bezierCurveTo(cpx1,ly,cpx2,ry,RCX,ry); ctx.stroke();
+
+  // Colored cable
+  ctx.strokeStyle=col; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(LCX,ly); ctx.bezierCurveTo(cpx1,ly,cpx2,ry,RCX,ry); ctx.stroke();
+
+  // Highlight stripe
+  ctx.globalAlpha=dimmed?0.05:0.15;
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(LCX,ly); ctx.bezierCurveTo(cpx1,ly,cpx2,ry,RCX,ry); ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawPanel(x, w, label){
+  const y=28, h=H-56;
+  const g=ctx.createLinearGradient(x,0,x+w,0);
+  g.addColorStop(0,'#151520'); g.addColorStop(0.5,'#1e1e2e'); g.addColorStop(1,'#151520');
+  ctx.fillStyle=g; ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle='#3a3a4a'; ctx.lineWidth=1.5; ctx.strokeRect(x,y,w,h);
+
+  // Rivets
+  [[x+10,y+10],[x+w-10,y+10],[x+10,y+h-10],[x+w-10,y+h-10]].forEach(([rx,ry])=>{
+    ctx.fillStyle='#1a1a2a'; ctx.beginPath(); ctx.arc(rx,ry,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.stroke();
+    ctx.strokeStyle='#555';
+    ctx.beginPath(); ctx.moveTo(rx-3,ry); ctx.lineTo(rx+3,ry); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx,ry-3); ctx.lineTo(rx,ry+3); ctx.stroke();
+  });
+
+  ctx.fillStyle='#555'; ctx.font='bold 10px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(label, x+w/2, y+6);
+}
+
+function drawConnector(cx, y, color, isSel){
+  ctx.save();
+  // Outer ring
+  ctx.fillStyle='#0d0d18'; ctx.beginPath(); ctx.arc(cx,y,16,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#444'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // Body
+  ctx.fillStyle=isSel?'#2a2a3e':'#141420';
+  ctx.beginPath(); ctx.arc(cx,y,13,0,Math.PI*2); ctx.fill();
+  if(isSel){
+    ctx.shadowBlur=18; ctx.shadowColor='rgba(255,255,255,0.8)';
+    ctx.strokeStyle='rgba(255,255,255,0.85)';
+  } else {
+    ctx.strokeStyle='#3a3a4a';
+  }
+  ctx.lineWidth=2; ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // LED
+  ctx.shadowBlur=14; ctx.shadowColor=color;
+  ctx.fillStyle=color; ctx.beginPath(); ctx.arc(cx,y,5,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Specular
+  ctx.fillStyle='rgba(255,255,255,0.45)';
+  ctx.beginPath(); ctx.arc(cx-2,y-3,2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function draw(){
+  drawBG();
+
+  // Wires
+  for(let w=0;w<N;w++) drawWire(w, false);
+
+  // Panels (over wire ends)
+  drawPanel(LPX, LPW, 'SOURCE');
+  drawPanel(RPX, RPW, 'DEST');
+
+  // Left connectors (fixed)
+  for(let i=0;i<N;i++) drawConnector(LCX, slotY(i), COLORS[i], false);
+
+  // Right connectors (swappable)
+  for(let i=0;i<N;i++) drawConnector(RCX, slotY(i), COLORS[rSlots[i]], sel===i);
+
+  // Title
+  ctx.fillStyle='#ccd'; ctx.font='bold 20px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText('FIX THE WIRES', W/2, 10);
+
+  // Crossing status
+  const cr=numCrosses();
+  ctx.font='13px monospace';
+  ctx.fillStyle=cr>0?'#ff7755':'#44ff88';
+  ctx.fillText(
+    cr>0 ? cr+' crossing'+(cr===1?'':' s')+' · swap right connectors to untangle'
+         : '✓ No crossings — wires aligned!',
+    W/2, 36
+  );
+
+  // Instruction
+  ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='12px monospace';
+  ctx.textBaseline='bottom';
+  ctx.fillText('Click a right connector to select (glow), click another to swap', W/2, H-6);
+
+  if(gState==='won'){
+    ctx.fillStyle='rgba(4,4,12,0.90)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#44ff88'; ctx.font='bold 62px monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('WIRES FIXED!', W/2, H/2-80);
+    ctx.fillStyle='#ccc'; ctx.font='24px monospace';
+    ctx.fillText('Your code is:', W/2, H/2+10);
+    ctx.fillStyle='#44ff88'; ctx.font='bold 72px monospace';
+    ctx.fillText('rx7yt', W/2, H/2+90);
+  }
+}
+
+function handleClick(mx, my){
+  if(gState==='won'){ init(); draw(); return; }
+  if(gState!=='play') return;
+
+  for(let i=0;i<N;i++){
+    const y=slotY(i), dx=mx-RCX, dy=my-y;
+    if(dx*dx+dy*dy<=22*22){
+      if(sel===-1){ sel=i; }
+      else if(sel===i){ sel=-1; }
+      else{
+        [rSlots[sel],rSlots[i]]=[rSlots[i],rSlots[sel]];
+        sel=-1;
+        if(numCrosses()===0) gState='won';
+      }
+      draw(); return;
+    }
+  }
+  sel=-1; draw();
+}
+
+canvas.addEventListener('click',e=>{
+  const r=canvas.getBoundingClientRect();
+  handleClick((e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height);
+});
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const r=canvas.getBoundingClientRect(),t=e.touches[0];
+  handleClick((t.clientX-r.left)*W/r.width,(t.clientY-r.top)*H/r.height);
+},{passive:false});
+
+init(); draw();
+</script>
+</body>
+</html>
