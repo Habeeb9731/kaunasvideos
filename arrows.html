@@ -188,12 +188,14 @@ function draw(){
     ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.fillRect(0,0,W,H);
     ctx.textAlign='center'; ctx.textBaseline='middle';
     if(gState==='gameover'){
-      ctx.fillStyle='#cc0000'; ctx.font='bold 54px monospace'; ctx.fillText('GAME OVER',W/2,H/2-40);
-      ctx.fillStyle='#444'; ctx.font='22px monospace'; ctx.fillText('tap to try again',W/2,H/2+34);
+      ctx.fillStyle='#cc0000'; ctx.font='bold 54px monospace'; ctx.fillText('GAME OVER',W/2,H/2-70);
+      ctx.fillStyle='#444'; ctx.font='24px monospace'; ctx.fillText('The code is:',W/2,H/2+10);
+      ctx.fillStyle='#cc0000'; ctx.font='bold 58px monospace'; ctx.fillText('9',W/2,H/2+80);
+      ctx.fillStyle='#444'; ctx.font='18px monospace'; ctx.fillText('tap to try again',W/2,H/2+140);
     } else {
       ctx.fillStyle='#000'; ctx.font='bold 54px monospace'; ctx.fillText('YOU WIN!',W/2,H/2-70);
       ctx.fillStyle='#444'; ctx.font='24px monospace'; ctx.fillText('The code is:',W/2,H/2+10);
-      ctx.fillStyle='#000'; ctx.font='bold 58px monospace'; ctx.fillText('mnwbq',W/2,H/2+80);
+      ctx.fillStyle='#000'; ctx.font='bold 58px monospace'; ctx.fillText('6',W/2,H/2+80);
     }
   }
 }
