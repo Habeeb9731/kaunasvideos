@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tetris</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    #wrapper { width:min(100vw,calc(100vh*16/9)); height:min(100vh,calc(100vw*9/16)); }
+    canvas { width:100%; height:100%; display:block; cursor:pointer; background:transparent; }
+  </style>
+</head>
+<body>
+<div id="wrapper"><canvas id="c" width="960" height="540"></canvas></div>
+<script>
+const W=960, H=540;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+
+const COLS=10, ROWS=20, CELL=26;
+const BX=220, BY=10;
+const WIN_LINES=10;
+
+const COLORS=['#00f0f0','#f0f000','#a000f0','#00f000','#f00000','#0000f0','#f0a000'];
+
+const SHAPES=[
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[0,1,1],[1,1,0]],
+  [[1,1,0],[0,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+];
+
+let board, piece, nextPiece, score, lines, level, dropTimer, gState, last;
+
+function emptyBoard() {
+  return Array.from({length:ROWS},()=>Array(COLS).fill(0));
+}
+
+function makePiece(t) {
+  if(t===undefined) t=Math.floor(Math.random()*7);
+  const shape=SHAPES[t].map(r=>[...r]);
+  return { t, shape, x:Math.floor(COLS/2)-Math.floor(shape[0].length/2), y:0 };
+}
+
+function rotate(shape) {
+  return shape[0].map((_,c)=>shape.map(r=>r[c]).reverse());
+}
+
+function valid(shape, x, y) {
+  for(let r=0;r<shape.length;r++) for(let c=0;c<shape[r].length;c++){
+    if(!shape[r][c]) continue;
+    const nx=x+c, ny=y+r;
+    if(nx<0||nx>=COLS||ny>=ROWS) return false;
+    if(ny>=0&&board[ny][nx]) return false;
+  }
+  return true;
+}
+
+function place() {
+  piece.shape.forEach((row,r)=>row.forEach((v,c)=>{
+    if(v) board[piece.y+r][piece.x+c]=piece.t+1;
+  }));
+  let cleared=0;
+  for(let r=ROWS-1;r>=0;r--){
+    if(board[r].every(v=>v)){ board.splice(r,1); board.unshift(Array(COLS).fill(0)); cleared++; r++; }
+  }
+  lines+=cleared;
+  score+=cleared*100*(level+1);
+  level=Math.floor(lines/5)+1;
+  if(lines>=WIN_LINES){ gState='won'; return; }
+  piece=nextPiece;
+  nextPiece=makePiece();
+  if(!valid(piece.shape,piece.x,piece.y)) gState='over';
+}
+
+function moveDown() {
+  if(valid(piece.shape,piece.x,piece.y+1)) piece.y++;
+  else place();
+}
+
+function hardDrop() {
+  while(valid(piece.shape,piece.x,piece.y+1)) piece.y++;
+  place();
+}
+
+function tryRotate() {
+  const r=rotate(piece.shape);
+  if(valid(r,piece.x,piece.y)) piece.shape=r;
+  else if(valid(r,piece.x-1,piece.y)){piece.shape=r;piece.x--;}
+  else if(valid(r,piece.x+1,piece.y)){piece.shape=r;piece.x++;}
+}
+
+function init() {
+  board=emptyBoard();
+  piece=makePiece();
+  nextPiece=makePiece();
+  score=0; lines=0; level=1; dropTimer=0; gState='play';
+  last=performance.now();
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────────────
+
+function cell(cx, cy, color, alpha) {
+  ctx.globalAlpha=alpha||1;
+  ctx.fillStyle=color;
+  ctx.fillRect(BX+cx*CELL+1,BY+cy*CELL+1,CELL-2,CELL-2);
+  ctx.fillStyle='rgba(255,255,255,0.22)';
+  ctx.fillRect(BX+cx*CELL+1,BY+cy*CELL+1,CELL-2,5);
+  ctx.globalAlpha=1;
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+
+  // Board background
+  ctx.fillStyle='#0d0d1a';
+  ctx.fillRect(BX,BY,COLS*CELL,ROWS*CELL);
+  // Grid
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1;
+  for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(BX,BY+r*CELL);ctx.lineTo(BX+COLS*CELL,BY+r*CELL);ctx.stroke();}
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(BX+c*CELL,BY);ctx.lineTo(BX+c*CELL,BY+ROWS*CELL);ctx.stroke();}
+  // Border
+  ctx.strokeStyle='#444'; ctx.lineWidth=2;
+  ctx.strokeRect(BX,BY,COLS*CELL,ROWS*CELL);
+
+  // Placed cells
+  board.forEach((row,r)=>row.forEach((v,c)=>{ if(v) cell(c,r,COLORS[v-1]); }));
+
+  if(gState==='play'){
+    // Ghost
+    let gy=piece.y;
+    while(valid(piece.shape,piece.x,gy+1)) gy++;
+    if(gy!==piece.y) piece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v)cell(piece.x+c,gy+r,COLORS[piece.t],0.2);}));
+    // Active piece
+    piece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v)cell(piece.x+c,piece.y+r,COLORS[piece.t]);}));
+  }
+
+  // Panel
+  const PX=BX+COLS*CELL+28, PY=BY;
+  ctx.textAlign='left'; ctx.textBaseline='top';
+
+  ctx.fillStyle='#888'; ctx.font='13px monospace'; ctx.fillText('SCORE',PX,PY+4);
+  ctx.fillStyle='#fff'; ctx.font='bold 22px monospace'; ctx.fillText(score,PX,PY+22);
+
+  ctx.fillStyle='#888'; ctx.font='13px monospace'; ctx.fillText('LINES',PX,PY+60);
+  ctx.fillStyle='#fff'; ctx.font='bold 22px monospace'; ctx.fillText(lines+' / '+WIN_LINES,PX,PY+78);
+
+  ctx.fillStyle='#888'; ctx.font='13px monospace'; ctx.fillText('LEVEL',PX,PY+116);
+  ctx.fillStyle='#fff'; ctx.font='bold 22px monospace'; ctx.fillText(level,PX,PY+134);
+
+  // Next piece box
+  ctx.fillStyle='#888'; ctx.font='13px monospace'; ctx.fillText('NEXT',PX,PY+180);
+  ctx.fillStyle='#0d0d1a'; ctx.fillRect(PX,PY+200,4*CELL,4*CELL);
+  ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.strokeRect(PX,PY+200,4*CELL,4*CELL);
+  if(nextPiece){
+    const ns=nextPiece.shape;
+    const ox=Math.floor((4-ns[0].length)/2), oy=Math.floor((4-ns.length)/2);
+    ns.forEach((row,r)=>row.forEach((v,c)=>{
+      if(!v) return;
+      const px2=PX+(ox+c)*CELL, py2=PY+200+(oy+r)*CELL;
+      ctx.globalAlpha=1; ctx.fillStyle=COLORS[nextPiece.t]; ctx.fillRect(px2+1,py2+1,CELL-2,CELL-2);
+      ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(px2+1,py2+1,CELL-2,5);
+    }));
+  }
+
+  // Controls
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='11px monospace';
+  const cy2=BY+ROWS*CELL-90;
+  ['← → move','↑  rotate','↓  soft drop','SPC hard drop'].forEach((t,i)=>ctx.fillText(t,PX,cy2+i*18));
+
+  // Overlays
+  if(gState==='start'){
+    ctx.fillStyle='rgba(0,0,0,0.88)'; ctx.fillRect(BX,BY,COLS*CELL,ROWS*CELL);
+    ctx.fillStyle='#f0f000'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('TETRIS',BX+COLS*CELL/2,H/2-30);
+    ctx.fillStyle='#aaa'; ctx.font='17px monospace';
+    ctx.fillText('tap or press key',BX+COLS*CELL/2,H/2+16);
+    ctx.font='14px monospace'; ctx.fillStyle='#666';
+    ctx.fillText('clear '+WIN_LINES+' lines to win',BX+COLS*CELL/2,H/2+44);
+  }
+
+  if(gState==='over'){
+    ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(BX,BY,COLS*CELL,ROWS*CELL);
+    ctx.fillStyle='#ff4444'; ctx.font='bold 28px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('GAME OVER',BX+COLS*CELL/2,H/2-20);
+    ctx.fillStyle='#aaa'; ctx.font='15px monospace';
+    ctx.fillText('tap to restart',BX+COLS*CELL/2,H/2+20);
+  }
+
+  if(gState==='won'){
+    ctx.fillStyle='rgba(0,0,0,0.82)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#f0f000'; ctx.font='bold 56px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('YOU WIN!',W/2,H/2-75);
+    ctx.fillStyle='#fff'; ctx.font='26px monospace';
+    ctx.fillText('Your code is:',W/2,H/2+5);
+    ctx.fillStyle='#f0f000'; ctx.font='bold 72px monospace';
+    ctx.fillText('20',W/2,H/2+90);
+  }
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────────
+function loop(ts) {
+  if(gState==='play'){
+    const dt=Math.min(ts-(last||ts),150);
+    last=ts;
+    dropTimer+=dt;
+    const interval=Math.max(80,500-level*40);
+    if(dropTimer>=interval){ dropTimer=0; moveDown(); }
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(gState==='start'||gState==='over'){ init(); return; }
+  if(gState!=='play') return;
+  if(e.key==='ArrowLeft'){ if(valid(piece.shape,piece.x-1,piece.y)) piece.x--; }
+  else if(e.key==='ArrowRight'){ if(valid(piece.shape,piece.x+1,piece.y)) piece.x++; }
+  else if(e.key==='ArrowDown'){ moveDown(); }
+  else if(e.key==='ArrowUp'||e.key==='w'||e.key==='W'){ tryRotate(); }
+  else if(e.key===' '){ e.preventDefault(); hardDrop(); }
+  draw();
+});
+
+let tx0,ty0;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  tx0=e.touches[0].clientX; ty0=e.touches[0].clientY;
+  if(gState==='start'||gState==='over') init();
+},{passive:false});
+
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(gState!=='play') return;
+  const rect=canvas.getBoundingClientRect();
+  const sc=W/rect.width;
+  const dx=(e.changedTouches[0].clientX-tx0)*sc;
+  const dy=(e.changedTouches[0].clientY-ty0)*sc;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20) tryRotate();
+  else if(Math.abs(dx)>Math.abs(dy)){ if(dx<0){if(valid(piece.shape,piece.x-1,piece.y))piece.x--;}else{if(valid(piece.shape,piece.x+1,piece.y))piece.x++;} }
+  else if(dy>30) hardDrop();
+  draw();
+},{passive:false});
+
+gState='start';
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
