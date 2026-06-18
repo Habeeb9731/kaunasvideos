@@ -58,6 +58,8 @@
       letter-spacing: 4px;
       text-transform: uppercase;
       text-shadow: 0 0 10px rgba(255, 170, 68, 0.4);
+      display: flex;
+      align-items: center;
     }
     #inventory {
       display: flex;
@@ -144,7 +146,36 @@
 <body>
 <div id="wrapper">
   <div id="hud">
-    <h1>Prehistoric Hunt</h1>
+    <h1 style="display: flex; align-items: center;">
+      <svg viewBox="0 0 32 32" style="width: 2.2vw; height: 2.2vw; min-width: 28px; min-height: 28px; margin-right: 12px;">
+        <!-- Hair back -->
+        <circle cx="16" cy="16" r="11" fill="#ff7733"/>
+        <!-- Messy pigtails -->
+        <circle cx="5" cy="12" r="5" fill="#ff7733"/>
+        <circle cx="27" cy="12" r="5" fill="#ff7733"/>
+        <rect x="3" y="11" width="4" height="2" fill="#ffdd33"/>
+        <rect x="25" y="11" width="4" height="2" fill="#ffdd33"/>
+        <!-- Face -->
+        <circle cx="16" cy="17" r="8.5" fill="#ffe0cc"/>
+        <!-- Bangs -->
+        <path d="M 7.5 13 Q 16 11 24.5 13 Q 16 18 7.5 13" fill="#ff7733"/>
+        <!-- Bone hair accessory -->
+        <g transform="translate(16, 6) rotate(-15)">
+          <rect x="-7" y="-1.5" width="14" height="3" fill="#ffffff"/>
+          <circle cx="-7" cy="-1.5" r="2" fill="#ffffff"/>
+          <circle cx="-7" cy="1.5" r="2" fill="#ffffff"/>
+          <circle cx="7" cy="-1.5" r="2" fill="#ffffff"/>
+          <circle cx="7" cy="1.5" r="2" fill="#ffffff"/>
+        </g>
+        <!-- Eyes -->
+        <circle cx="13" cy="17" r="1.2" fill="#222"/>
+        <circle cx="19" cy="17" r="1.2" fill="#222"/>
+        <!-- Blushing cheeks -->
+        <circle cx="11.5" cy="19" r="1.2" fill="rgba(255, 110, 110, 0.6)"/>
+        <circle cx="20.5" cy="19" r="1.2" fill="rgba(255, 110, 110, 0.6)"/>
+      </svg>
+      Find 3 Screws
+    </h1>
     <div id="inventory">
       <span>Screws: </span>
       <div id="slot-1" class="inventory-item"></div>
