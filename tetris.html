@@ -19,7 +19,7 @@ const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 
 const COLS=10, ROWS=20, CELL=22;
-const BX=275, BY=Math.floor((H-ROWS*CELL)/2);
+const BX=260, BY=Math.floor((H-ROWS*CELL)/2);
 const WIN_LINES=10;
 
 const COLORS=['#00f0f0','#f0f000','#a000f0','#00f000','#f00000','#0000f0','#f0a000'];
@@ -115,6 +115,9 @@ function cell(cx, cy, color, alpha) {
 
 function draw() {
   ctx.clearRect(0,0,W,H);
+  // Full canvas background — makes the 960×540 area visible
+  ctx.fillStyle='#111122';
+  ctx.fillRect(0,0,W,H);
 
   // Board background
   ctx.fillStyle='#0d0d1a';
@@ -174,13 +177,13 @@ function draw() {
 
   // Overlays
   if(gState==='start'){
-    ctx.fillStyle='rgba(0,0,0,0.88)'; ctx.fillRect(BX,BY,COLS*CELL,ROWS*CELL);
-    ctx.fillStyle='#f0f000'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('TETRIS',BX+COLS*CELL/2,H/2-30);
-    ctx.fillStyle='#aaa'; ctx.font='17px monospace';
-    ctx.fillText('tap or press key',BX+COLS*CELL/2,H/2+16);
-    ctx.font='14px monospace'; ctx.fillStyle='#666';
-    ctx.fillText('clear '+WIN_LINES+' lines to win',BX+COLS*CELL/2,H/2+44);
+    ctx.fillStyle='rgba(0,0,0,0.88)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#f0f000'; ctx.font='bold 54px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('TETRIS',W/2,H/2-40);
+    ctx.fillStyle='#aaa'; ctx.font='20px monospace';
+    ctx.fillText('tap or press any key to start',W/2,H/2+20);
+    ctx.font='15px monospace'; ctx.fillStyle='#666';
+    ctx.fillText('clear '+WIN_LINES+' lines to win',W/2,H/2+52);
   }
 
   if(gState==='over'){
