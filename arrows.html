@@ -159,17 +159,16 @@ function draw(){
   });
   ctx.restore();
 
-  // HUD — level + hearts
+  // HUD — level left, hearts right
   ctx.fillStyle='#000'; ctx.font='bold 18px monospace';
-  ctx.textAlign='center'; ctx.textBaseline='top';
-  ctx.fillText('LEVEL '+(lvlIdx+1)+' / 5', W/2, 10);
+  ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText('LEVEL '+(lvlIdx+1)+' / 5', 20, 12);
 
   ctx.font='26px sans-serif';
-  const hw=36, hx=W/2-hw;
   for(let i=0;i<3;i++){
-    ctx.fillStyle=i<lives?'#000':'#bbb';
+    ctx.fillStyle=i<lives?'#000':'#ccc';
     ctx.textAlign='center'; ctx.textBaseline='top';
-    ctx.fillText('♥',hx+i*hw,8);
+    ctx.fillText('♥', W-90+i*34, 8);
   }
 
   // Restart button
