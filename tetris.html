@@ -18,8 +18,8 @@ const W=960, H=540;
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 
-const COLS=10, ROWS=20, CELL=26;
-const BX=220, BY=10;
+const COLS=10, ROWS=20, CELL=22;
+const BX=275, BY=Math.floor((H-ROWS*CELL)/2);
 const WIN_LINES=10;
 
 const COLORS=['#00f0f0','#f0f000','#a000f0','#00f000','#f00000','#0000f0','#f0a000'];
@@ -140,7 +140,7 @@ function draw() {
   }
 
   // Panel
-  const PX=BX+COLS*CELL+28, PY=BY;
+  const PX=BX+COLS*CELL+30, PY=BY;
   ctx.textAlign='left'; ctx.textBaseline='top';
 
   ctx.fillStyle='#888'; ctx.font='13px monospace'; ctx.fillText('SCORE',PX,PY+4);
