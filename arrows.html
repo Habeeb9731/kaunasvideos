@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arrow Escape</title>
+  <title>Arrow Clear</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #0d0d1f; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    html, body { width: 100%; height: 100%; background: #1a1a2e; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     #wrapper { width: min(100vw, calc(100vh * 16/9)); height: min(100vh, calc(100vw * 9/16)); }
     canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
   </style>
@@ -22,199 +22,185 @@ const U=0, R=1, D=2, L=3;
 const DX=[0,1,0,-1], DY=[-1,0,1,0];
 const ARR=['↑','→','↓','←'];
 
-const CONFIGS=[{cols:6,rows:5},{cols:7,rows:5},{cols:8,rows:6},{cols:9,rows:6},{cols:10,rows:7}];
+/*
+  Mechanics: tap an arrow → it slides in its direction until blocked or flies off edge.
+  Fly off = removed. Clear all arrows = level clear.
+  Restart level costs a life. 3 lives total.
+*/
 
-let lvlIdx=0, lives=3, gState='idle', level=null, ball=null, vis=null, moveT=0;
-const SPEED=15;
+// Each level: arrows that block each other in specific order
+const LEVELS = [
+  // L1: simple 3-arrow intro — remove D, then R, then U (or any independent first)
+  { cols:5, rows:5, arrows:[{c:2,r:1,d:U},{c:1,r:2,d:R},{c:2,r:2,d:D}] },
+  // L2: two chains — [1,4,R] or [1,1,U] first, then unblock the rest
+  { cols:5, rows:5, arrows:[{c:1,r:1,d:U},{c:1,r:2,d:D},{c:2,r:2,d:L},{c:2,r:3,d:U},{c:1,r:4,d:R}] },
+  // L3: vertical chain + side arrows — must clear top-down
+  { cols:5, rows:5, arrows:[{c:2,r:1,d:U},{c:2,r:2,d:U},{c:2,r:3,d:U},{c:1,r:3,d:R},{c:3,r:3,d:R}] },
+  // L4: two independent chain + a blocker
+  { cols:6, rows:6, arrows:[{c:2,r:1,d:U},{c:2,r:2,d:U},{c:2,r:3,d:U},{c:1,r:3,d:R},{c:3,r:3,d:L},{c:3,r:4,d:D}] },
+  // L5: two chains interleaved
+  { cols:6, rows:6, arrows:[{c:2,r:1,d:U},{c:1,r:2,d:D},{c:2,r:2,d:U},{c:1,r:3,d:D},{c:2,r:3,d:U},{c:3,r:3,d:L}] },
+];
 
-function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];} }
+let lvlIdx=0, lives=3, gState='play';
+let arrows=[], busy=false;
+const ANIM_T=14;
 
-function pathFind(cols,rows,sc,sr,ec,er){
-  const seen=new Set([`${sc},${sr}`]);
-  const p=[[sc,sr]];
-  function dfs(c,r){
-    if(c===ec&&r===er) return true;
-    const ds=[[0,-1],[1,0],[0,1],[-1,0]]; shuffle(ds);
-    for(const[dc,dr]of ds){
-      const nc=c+dc,nr=r+dr;
-      if(nc<0||nc>=cols||nr<0||nr>=rows) continue;
-      const k=`${nc},${nr}`;
-      if(seen.has(k)) continue;
-      seen.add(k); p.push([nc,nr]);
-      if(dfs(nc,nr)) return true;
-      p.pop(); seen.delete(k);
-    }
-    return false;
-  }
-  return dfs(sc,sr)?p:null;
+function cs(){
+  const lv=LEVELS[lvlIdx];
+  return Math.min(Math.floor((W-220)/lv.cols), Math.floor((H-110)/lv.rows), 96);
 }
-
-function sim(grid,cols,rows,sc,sr,ec,er){
-  let c=sc,r=sr; const v=new Set();
-  for(;;){
-    if(c===ec&&r===er) return 'exit';
-    const k=`${c},${r}`;
-    if(v.has(k)) return 'loop';
-    v.add(k);
-    const dir=grid[r][c];
-    const nc=c+DX[dir],nr=r+DY[dir];
-    if(nc<0||nc>=cols||nr<0||nr>=rows) return 'oob';
-    c=nc; r=nr;
-  }
+function go(){
+  const lv=LEVELS[lvlIdx], s=cs();
+  return { ox:Math.floor((W-lv.cols*s)/2), oy:Math.floor((H-lv.rows*s)/2)+14 };
 }
-
-function buildLevel(cfg){
-  const{cols,rows}=cfg;
-  const ec=cols-1,er=0;
-  for(let a=0;a<200;a++){
-    const sc=0|Math.random()*Math.ceil(cols/2);
-    const sr=(0|rows/2)+(0|Math.random()*Math.ceil(rows/2));
-    if(sc===ec&&sr===er) continue;
-    const path=pathFind(cols,rows,sc,sr,ec,er);
-    if(!path||path.length<Math.ceil((cols+rows)/2)) continue;
-    const grid=Array.from({length:rows},()=>Array.from({length:cols},()=>0|Math.random()*4));
-    for(let i=0;i<path.length-1;i++){
-      const[c,r]=path[i],[nc,nr]=path[i+1];
-      const dc=nc-c,dr=nr-r;
-      grid[r][c]= dc===1?R:dc===-1?L:dr===-1?U:D;
-    }
-    // count valid starts - reject if too many (puzzle too easy)
-    let validCount=0;
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      if(c===ec&&r===er) continue;
-      if(sim(grid,cols,rows,c,r,ec,er)==='exit') validCount++;
-    }
-    if(validCount<1||validCount>Math.ceil(cols*rows*0.3)) continue;
-    return{cols,rows,grid,exit:[ec,er]};
-  }
-  // fallback: just return whatever
-  const sc=0,sr=rows-1;
-  const path=pathFind(cfg.cols,cfg.rows,sc,sr,ec,er);
-  const grid=Array.from({length:cfg.rows},()=>Array.from({length:cfg.cols},()=>0|Math.random()*4));
-  if(path) for(let i=0;i<path.length-1;i++){
-    const[c,r]=path[i],[nc,nr]=path[i+1];
-    grid[r][c]= nc-c===1?R:nc-c===-1?L:nr-r===-1?U:D;
-  }
-  return{cols:cfg.cols,rows:cfg.rows,grid,exit:[ec,er]};
-}
-
-function cs(){ return Math.min(Math.floor((W-130)/level.cols), Math.floor((H-90)/level.rows), 82); }
-function go(){ const s=cs(); return{ox:Math.floor((W-level.cols*s)/2),oy:Math.floor((H-level.rows*s)/2)+14}; }
 
 function initLevel(){
-  level=buildLevel(CONFIGS[Math.min(lvlIdx,CONFIGS.length-1)]);
-  ball=null; vis=null; gState='idle';
+  arrows=LEVELS[lvlIdx].arrows.map(a=>({...a, anim:null, flash:0}));
+  busy=false; gState='play';
 }
 
-function startBall(c,r){
-  const[ec,er]=level.exit;
-  if(c===ec&&r===er) return;
-  ball={c,r}; vis=Array.from({length:level.rows},()=>new Array(level.cols).fill(false));
-  gState='moving'; moveT=0;
+function trySlide(idx){
+  if(busy) return;
+  const a=arrows[idx];
+  const lv=LEVELS[lvlIdx];
+  const s=cs(); const{ox,oy}=go();
+
+  // Walk in direction until blocked or off-edge
+  let tc=a.c, tr=a.r;
+  let fallsOff=false;
+  for(;;){
+    const nc=tc+DX[a.d], nr=tr+DY[a.d];
+    if(nc<0||nc>=lv.cols||nr<0||nr>=lv.rows){ fallsOff=true; tc=nc; tr=nr; break; }
+    if(arrows.some((b,bi)=>bi!==idx&&b.c===nc&&b.r===nr)) break;
+    tc=nc; tr=nr;
+  }
+
+  if(tc===a.c&&tr===a.r){ a.flash=14; return; } // stuck — flash
+
+  busy=true;
+  const extra = fallsOff ? s*1.2 : 0;
+  a.anim={
+    x0: ox+a.c*s+s/2, y0: oy+a.r*s+s/2,
+    x1: ox+tc*s+s/2 + DX[a.d]*extra,
+    y1: oy+tr*s+s/2 + DY[a.d]*extra,
+    tc, tr, t:0, fallsOff
+  };
 }
 
 function tick(){
-  if(gState!=='moving') return;
-  if(++moveT<SPEED) return;
-  moveT=0;
-  const{c,r}=ball;
-  const[ec,er]=level.exit;
-  if(c===ec&&r===er){
+  if(gState!=='play') return;
+  arrows.forEach(a=>{ if(a.flash>0) a.flash--; });
+
+  const done=[];
+  arrows.forEach((a,i)=>{
+    if(!a.anim) return;
+    a.anim.t++;
+    if(a.anim.t>=ANIM_T){
+      if(a.anim.fallsOff) done.push(i);
+      else{ a.c=a.anim.tc; a.r=a.anim.tr; a.anim=null; }
+    }
+  });
+  for(let i=done.length-1;i>=0;i--) arrows.splice(done[i],1);
+  busy=arrows.some(a=>a.anim);
+
+  if(!busy&&arrows.length===0){
     lvlIdx++;
-    if(lvlIdx>=5){ gState='won'; return; }
-    gState='levelup';
-    setTimeout(initLevel,1800);
-    return;
+    if(lvlIdx>=LEVELS.length){ gState='won'; }
+    else{ gState='levelup'; setTimeout(initLevel,1700); }
   }
-  if(vis[r][c]){
-    lives--;
-    gState='died';
-    setTimeout(()=>{ if(lives<=0){gState='gameover';}else{ball=null;vis=null;gState='idle';} },1300);
-    return;
-  }
-  vis[r][c]=true;
-  const dir=level.grid[r][c];
-  const nc=c+DX[dir],nr=r+DY[dir];
-  if(nc<0||nc>=level.cols||nr<0||nr>=level.rows){
-    lives--;
-    gState='died';
-    setTimeout(()=>{ if(lives<=0){gState='gameover';}else{ball=null;vis=null;gState='idle';} },1300);
-    return;
-  }
-  ball.c=nc; ball.r=nr;
 }
 
+function easeInOut(t){ return t<0.5?2*t*t:-1+(4-2*t)*t; }
+
 function draw(){
-  ctx.fillStyle='#0d0d1f'; ctx.fillRect(0,0,W,H);
-  if(!level) return;
-  const s=cs(); const{ox,oy}=go();
-  const[ec,er]=level.exit;
+  ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,W,H);
+  if(!LEVELS[lvlIdx]) return;
+  const lv=LEVELS[lvlIdx], s=cs(); const{ox,oy}=go();
 
   // Grid
-  for(let r=0;r<level.rows;r++){
-    for(let c=0;c<level.cols;c++){
-      const x=ox+c*s, y=oy+r*s;
-      const isE=c===ec&&r===er;
-      const wasV=vis&&vis[r][c];
-      ctx.fillStyle=isE?'#0a2818':wasV?'#141430':'#0f0f26';
-      ctx.fillRect(x+1,y+1,s-2,s-2);
-      ctx.strokeStyle=isE?'#1daa66':wasV?'#2233aa':'#1c1c45';
-      ctx.lineWidth=1.5;
-      ctx.strokeRect(x+1,y+1,s-2,s-2);
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      if(isE){
-        ctx.fillStyle='#1daa66';
-        ctx.font=`bold ${0|s*.52}px sans-serif`;
-        ctx.fillText('★',x+s/2,y+s/2+1);
-      } else {
-        ctx.fillStyle=wasV?'#223388':'#5577ff';
-        ctx.font=`bold ${0|s*.54}px sans-serif`;
-        ctx.fillText(ARR[level.grid[r][c]],x+s/2,y+s/2+2);
-      }
+  for(let r=0;r<lv.rows;r++) for(let c=0;c<lv.cols;c++){
+    const x=ox+c*s,y=oy+r*s;
+    ctx.fillStyle='#0f0f26'; ctx.fillRect(x+1,y+1,s-2,s-2);
+    ctx.strokeStyle='#1c1c48'; ctx.lineWidth=1.5;
+    ctx.strokeRect(x+1,y+1,s-2,s-2);
+  }
+
+  // Arrows (clipped to grid + 1-cell margin)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ox-s, oy-s, lv.cols*s+2*s, lv.rows*s+2*s);
+  ctx.clip();
+
+  arrows.forEach(a=>{
+    let ax,ay;
+    if(a.anim){
+      const p=easeInOut(a.anim.t/ANIM_T);
+      ax=a.anim.x0+(a.anim.x1-a.anim.x0)*p;
+      ay=a.anim.y0+(a.anim.y1-a.anim.y0)*p;
+    } else {
+      ax=ox+a.c*s+s/2; ay=oy+a.r*s+s/2;
     }
-  }
 
-  // Ball
-  if(ball&&gState!=='died'){
-    const bx=ox+ball.c*s+s/2, by=oy+ball.r*s+s/2, br=s*.28;
+    const fl=a.flash>0;
+    const rad=s*0.38;
+
     ctx.save();
-    ctx.shadowBlur=22; ctx.shadowColor='#ffee44';
-    ctx.fillStyle='#ffee44';
-    ctx.beginPath(); ctx.arc(bx,by,br,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=fl?0:14; ctx.shadowColor='#334488';
+    // Circle bg
+    ctx.fillStyle=fl?'#3a001a':'#0d1535';
+    ctx.beginPath(); ctx.arc(ax,ay,rad,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=fl?'#ff4466':'#3355cc';
+    ctx.lineWidth=fl?2.5:2; ctx.stroke();
+    // Arrow symbol
+    ctx.fillStyle=fl?'#ff4466':'#6688ff';
+    ctx.font=`bold ${Math.round(s*0.5)}px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(ARR[a.d],ax,ay+2);
     ctx.restore();
-  }
+  });
+  ctx.restore();
 
-  // HUD
-  ctx.fillStyle='#556688'; ctx.font='bold 18px monospace';
+  // HUD — level + hearts
+  ctx.fillStyle='#445566'; ctx.font='bold 18px monospace';
   ctx.textAlign='center'; ctx.textBaseline='top';
   ctx.fillText('LEVEL '+(lvlIdx+1)+' / 5', W/2, 10);
-  ctx.font='25px sans-serif';
-  const hw=34, hx=W/2-hw;
+
+  ctx.font='26px sans-serif';
+  const hw=36, hx=W/2-hw;
   for(let i=0;i<3;i++){
     ctx.fillStyle=i<lives?'#e94560':'#252535';
     ctx.textAlign='center'; ctx.textBaseline='top';
     ctx.fillText('♥',hx+i*hw,8);
   }
 
-  if(gState==='idle'){
-    ctx.fillStyle='rgba(170,190,255,0.5)'; ctx.font='17px monospace';
+  // Restart button
+  if(gState==='play'){
+    const rbx=W-120, rby=H-46;
+    ctx.fillStyle='#1c1c3a';
+    ctx.beginPath(); ctx.roundRect(rbx,rby,110,36,8); ctx.fill();
+    ctx.strokeStyle='#2a2a55'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#5566aa'; ctx.font='14px monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('↺ RESTART (-♥)',rbx+55,rby+18);
+  }
+
+  // Hint
+  if(gState==='play'){
+    ctx.fillStyle='rgba(150,170,220,0.42)'; ctx.font='15px monospace';
     ctx.textAlign='center'; ctx.textBaseline='bottom';
-    ctx.fillText('tap any cell · ball follows arrows · reach ★ to win', W/2, H-12);
+    ctx.fillText('tap arrow → slides until blocked · flies off edge = cleared',W/2,H-10);
   }
 
   // Overlays
-  if(['died','gameover','levelup','won'].includes(gState)){
-    ctx.fillStyle='rgba(0,0,0,0.76)'; ctx.fillRect(0,0,W,H);
+  if(['levelup','won','gameover'].includes(gState)){
+    ctx.fillStyle='rgba(0,0,0,0.80)'; ctx.fillRect(0,0,W,H);
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    if(gState==='died'){
-      ctx.fillStyle='#e94560'; ctx.font='bold 48px monospace';
-      ctx.fillText(lives<=0?'NO LIVES!':'LOOP! -1 ♥',W/2,H/2-20);
-      if(lives>0){ ctx.fillStyle='#888'; ctx.font='22px monospace'; ctx.fillText('try again…',W/2,H/2+34); }
+    if(gState==='levelup'){
+      ctx.fillStyle='#22cc77'; ctx.font='bold 54px monospace'; ctx.fillText('CLEARED! ✓',W/2,H/2);
     } else if(gState==='gameover'){
       ctx.fillStyle='#e94560'; ctx.font='bold 54px monospace'; ctx.fillText('GAME OVER',W/2,H/2-40);
       ctx.fillStyle='#aaa'; ctx.font='22px monospace'; ctx.fillText('tap to restart',W/2,H/2+34);
-    } else if(gState==='levelup'){
-      ctx.fillStyle='#1daa66'; ctx.font='bold 52px monospace'; ctx.fillText('LEVEL CLEAR ★',W/2,H/2);
     } else if(gState==='won'){
       ctx.fillStyle='#ffee44'; ctx.font='bold 54px monospace'; ctx.fillText('YOU WIN! 🎉',W/2,H/2-70);
       ctx.fillStyle='#aaa'; ctx.font='24px monospace'; ctx.fillText('The code is:',W/2,H/2+10);
@@ -225,12 +211,20 @@ function draw(){
 
 function handleInput(mx,my){
   if(gState==='gameover'){ lives=3; lvlIdx=0; initLevel(); return; }
-  if(gState==='won') return;
-  if(gState==='idle'){
-    const s=cs(),{ox,oy}=go();
-    const c=0|((mx-ox)/s), r=0|((my-oy)/s);
-    if(c>=0&&c<level.cols&&r>=0&&r<level.rows) startBall(c,r);
+  if(gState!=='play'||busy) return;
+
+  // Restart button
+  if(mx>=W-120&&mx<=W-10&&my>=H-46&&my<=H-10){
+    lives--;
+    if(lives<=0){ gState='gameover'; return; }
+    initLevel(); return;
   }
+
+  const s=cs(); const{ox,oy}=go(); const lv=LEVELS[lvlIdx];
+  const c=Math.floor((mx-ox)/s), r=Math.floor((my-oy)/s);
+  if(c<0||c>=lv.cols||r<0||r>=lv.rows) return;
+  const idx=arrows.findIndex(a=>a.c===c&&a.r===r&&!a.anim);
+  if(idx!==-1) trySlide(idx);
 }
 
 canvas.addEventListener('click',e=>{
