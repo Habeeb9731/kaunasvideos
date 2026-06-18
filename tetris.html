@@ -113,11 +113,52 @@ function cell(cx, cy, color, alpha) {
   ctx.globalAlpha=1;
 }
 
+function drawStartScreen() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#111122'; ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#f0f000'; ctx.font='bold 68px monospace';
+  ctx.fillText('TETRIS', W/2, 70);
+
+  ctx.strokeStyle='#333'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(60,118); ctx.lineTo(W-60,118); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2,130); ctx.lineTo(W/2,H-70); ctx.stroke();
+
+  ctx.fillStyle='#f0f000'; ctx.font='bold 18px monospace'; ctx.textAlign='center';
+  ctx.fillText('CONTROLS', W/4, 152);
+  const ctrl=[['← →','Move left / right'],['↑','Rotate piece'],['↓','Soft drop'],['SPACE','Hard drop']];
+  ctx.textAlign='left';
+  ctrl.forEach(([k,d],i)=>{
+    const y=196+i*52;
+    ctx.fillStyle='#1e1e36'; ctx.fillRect(60,y-18,W/2-80,40);
+    ctx.fillStyle='#f0f000'; ctx.font='bold 16px monospace'; ctx.fillText(k,76,y+2);
+    ctx.fillStyle='#ccc';    ctx.font='16px monospace'; ctx.fillText(d,170,y+2);
+  });
+
+  ctx.fillStyle='#f0f000'; ctx.font='bold 18px monospace'; ctx.textAlign='center';
+  ctx.fillText('GOAL', W*3/4, 152);
+  ctx.fillStyle='#aaa'; ctx.font='18px monospace';
+  ctx.fillText('Clear '+WIN_LINES+' lines to win!', W*3/4, 210);
+  ctx.fillStyle='#555'; ctx.font='14px monospace';
+  ['Speed increases every 5 lines','Scoring: lines × 100 × level','Ghost piece shows landing spot'].forEach((t,i)=>{
+    ctx.fillText(t, W*3/4, 270+i*28);
+  });
+  ctx.fillStyle='#444'; ctx.font='13px monospace';
+  ctx.fillText('Mobile: swipe ← → to move', W*3/4, 385);
+  ctx.fillText('swipe ↓ = hard drop  |  tap = rotate', W*3/4, 408);
+
+  ctx.strokeStyle='#333'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(60,H-58); ctx.lineTo(W-60,H-58); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 22px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('▶  Press any key or tap to START', W/2, H-28);
+}
+
 function draw() {
   ctx.clearRect(0,0,W,H);
-  // Full canvas background — makes the 960×540 area visible
-  ctx.fillStyle='#111122';
-  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#111122'; ctx.fillRect(0,0,W,H);
+
+  if(gState==='start'){ drawStartScreen(); return; }
 
   // Board background
   ctx.fillStyle='#0d0d1a';
@@ -175,58 +216,6 @@ function draw() {
   const cy2=BY+ROWS*CELL-90;
   ['← → move','↑  rotate','↓  soft drop','SPC hard drop'].forEach((t,i)=>ctx.fillText(t,PX,cy2+i*18));
 
-  // Start screen — full canvas
-  if(gState==='start'){
-    ctx.fillStyle='#111122'; ctx.fillRect(0,0,W,H);
-
-    // Title
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle='#f0f000'; ctx.font='bold 68px monospace';
-    ctx.fillText('TETRIS', W/2, 70);
-
-    // Divider
-    ctx.strokeStyle='#333'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(60,118); ctx.lineTo(W-60,118); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W/2,130); ctx.lineTo(W/2,H-70); ctx.stroke();
-
-    // ── Left: Controls ──
-    ctx.fillStyle='#f0f000'; ctx.font='bold 18px monospace'; ctx.textAlign='center';
-    ctx.fillText('CONTROLS', W/4, 152);
-
-    const ctrl=[['← →','Move left / right'],['↑  ','Rotate piece'],['↓  ','Soft drop'],['SPC','Hard drop (instant)']];
-    ctx.textAlign='left';
-    ctrl.forEach(([k,d],i)=>{
-      const y=195+i*52;
-      ctx.fillStyle='#222244'; ctx.fillRect(80,y-18,W/2-100,40);
-      ctx.fillStyle='#f0f000'; ctx.font='bold 17px monospace'; ctx.fillText(k, 96, y+2);
-      ctx.fillStyle='#ccc';    ctx.font='16px monospace';      ctx.fillText(d, 152, y+2);
-    });
-
-    // ── Right: Goal ──
-    ctx.fillStyle='#f0f000'; ctx.font='bold 18px monospace'; ctx.textAlign='center';
-    ctx.fillText('GOAL', W*3/4, 152);
-
-    ctx.fillStyle='#aaa'; ctx.font='17px monospace';
-    ctx.fillText('Clear '+WIN_LINES+' lines', W*3/4, 210);
-    ctx.fillText('to win the game', W*3/4, 240);
-
-    ctx.fillStyle='#555'; ctx.font='14px monospace';
-    ctx.fillText('Lines clear faster = more score', W*3/4, 290);
-    ctx.fillText('Speed increases every 5 lines', W*3/4, 314);
-
-    // Mobile note
-    ctx.fillStyle='#444'; ctx.font='14px monospace';
-    ctx.fillText('Mobile: swipe left/right to move', W*3/4, 366);
-    ctx.fillText('swipe down = hard drop', W*3/4, 388);
-    ctx.fillText('tap = rotate', W*3/4, 410);
-
-    // Start prompt
-    ctx.fillStyle='#111122'; ctx.fillRect(0,H-58,W,58);
-    ctx.strokeStyle='#333'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(60,H-58); ctx.lineTo(W-60,H-58); ctx.stroke();
-    ctx.fillStyle='#fff'; ctx.font='bold 20px monospace'; ctx.textAlign='center';
-    ctx.fillText('▶  Press any key or tap to START', W/2, H-28);
-  }
 
   if(gState==='over'){
     ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(BX,BY,COLS*CELL,ROWS*CELL);
